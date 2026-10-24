@@ -1,0 +1,128 @@
+/*
+ * Aurora design system. Everything sits on a monospace cell grid:
+ * one cell is 1ch wide and --cell-h tall. Sizes are expressed in cells
+ * (calc(n * var(--cell-w))) so panels, rows and gutters line up like a TUI.
+ * Colors are tokens; components never use literal colors.
+ */
+:root {
+  --font-mono: "JetBrains Mono", "Berkeley Mono", "SF Mono", "Cascadia Code", Menlo, Consolas,
+    "DejaVu Sans Mono", monospace;
+  --font-size: 13px;
+  --cell-w: 1ch;
+  /* Row height of virtualized lists; TS reads it at runtime. */
+  --cell-h: 20px;
+  /* Title, tab and hint bars: two rows tall, like a TUI's chrome. */
+  --bar-h: calc(2 * var(--cell-h));
+
+  color-scheme: dark;
+  /* Phosphor: a green-on-black terminal. */
+  --bg: #070f0b;
+  --bg-panel: #091410;
+  --bg-raised: #0d1c15;
+  --bg-hover: #0f2219;
+  --bg-select: #12301f;
+  --bg-select-dim: #0e2219;
+  --line: #16301f;
+  --line-strong: #23472f;
+  --fg: #d3f2da;
+  --fg-dim: #84ad90;
+  --fg-faint: #4b6d56;
+  --accent: #5ef08c;
+  --accent-fg: #03140a;
+  --accent-2: #9be8c0;
+  --warn: #e9c86b;
+  --danger: #ff7b6b;
+  --info: #7fd8c6;
+  --match: #5ef08c;
+  --match-bg: rgba(94, 240, 140, 0.14);
+  --cursor: #5ef08c;
+  --selection: rgba(94, 240, 140, 0.2);
+
+  --syn-keyword: #5ef08c;
+  --syn-string: #b9e6a8;
+  --syn-number: #e9c86b;
+  --syn-comment: #4f7a5d;
+  --syn-function: #8fe0cb;
+  --syn-type: #7af5a6;
+  --syn-variable: #d3f2da;
+  --syn-property: #a9dcb8;
+  --syn-operator: #6f9b7f;
+  --syn-tag: #ff9a7a;
+  --syn-attr: #e9c86b;
+  --syn-heading: #5ef08c;
+  --syn-link: #5ef08c;
+
+  /* Terminal palette (ANSI 0-15), read by xterm.js at runtime. */
+  --ansi-black: #0d1c15;
+  --ansi-red: #ff7b6b;
+  --ansi-green: #5ef08c;
+  --ansi-yellow: #e9c86b;
+  --ansi-blue: #7fb8ff;
+  --ansi-magenta: #c7a2ff;
+  --ansi-cyan: #7fd8c6;
+  --ansi-white: #d3f2da;
+  --ansi-bright-black: #4b6d56;
+  --ansi-bright-red: #ff9d90;
+  --ansi-bright-green: #9cf7b9;
+  --ansi-bright-yellow: #f3da94;
+  --ansi-bright-blue: #a8cfff;
+  --ansi-bright-magenta: #dcc4ff;
+  --ansi-bright-cyan: #b0ebde;
+  --ansi-bright-white: #f1fff4;
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+  --bg: #f7f6f1;
+  --bg-panel: #efeee7;
+  --bg-raised: #e7e5dc;
+  --bg-hover: #e3e1d7;
+  --bg-select: #d3e9df;
+  --bg-select-dim: #e2e6df;
+  --line: #dcd9ce;
+  --line-strong: #c7c3b6;
+  --fg: #22262b;
+  --fg-dim: #66707a;
+  --fg-faint: #a8a89e;
+  --accent: #0e7c55;
+  --accent-fg: #f7f6f1;
+  --accent-2: #6d3fd6;
+  --warn: #8f6500;
+  --danger: #c0392b;
+  --info: #1f62b5;
+  --match: #0e7c55;
+  --match-bg: rgba(14, 124, 85, 0.14);
+  --cursor: #0e7c55;
+  --selection: rgba(31, 98, 181, 0.18);
+
+  --syn-keyword: #6d3fd6;
+  --syn-string: #2f7a32;
+  --syn-number: #a2520d;
+  --syn-comment: #8e958c;
+  --syn-function: #1f62b5;
+  --syn-type: #0e7c55;
+  --syn-variable: #22262b;
+  --syn-property: #24727f;
+  --syn-operator: #66707a;
+  --syn-tag: #b3372a;
+  --syn-attr: #8f6500;
+  --syn-heading: #0e7c55;
+  --syn-link: #1f62b5;
+
+  --ansi-black: #22262b;
+  --ansi-red: #c0392b;
+  --ansi-green: #0e7c55;
+  --ansi-yellow: #8f6500;
+  --ansi-blue: #1f62b5;
+  --ansi-magenta: #6d3fd6;
+  --ansi-cyan: #24727f;
+  --ansi-white: #a8a89e;
+  --ansi-bright-black: #66707a;
+  --ansi-bright-red: #e0533f;
+  --ansi-bright-green: #1a9c6e;
+  --ansi-bright-yellow: #b08300;
+  --ansi-bright-blue: #3a7fd5;
+  --ansi-bright-magenta: #8a5ce8;
+  --ansi-bright-cyan: #2f8fa0;
+  --ansi-bright-white: #ffffff;
+}
