@@ -5,6 +5,7 @@ import { load, save } from "../lib/storage";
 import { openFile } from "../state/editor";
 import { searchFocus } from "../state/ui";
 import { workspace } from "../state/workspace";
+import { t } from "../lib/i18n";
 
 const DEBOUNCE_MS = 200;
 
@@ -71,15 +72,15 @@ export function SearchPanel() {
     <section class="search">
       <div class="panel-title">
         <Show when={!results() && !busy()}>
-          <span class="faint">texto no workspace</span>
+          <span class="faint">{t("search.idle")}</span>
         </Show>
         <Show when={busy()}>
           <span class="faint">…</span>
         </Show>
         <Show when={results() && !busy()}>
           <span class="faint">
-            {results()!.total} em {results()!.files.length} arq · {elapsed()} ms
-            {results()!.truncated ? " · truncado" : ""}
+            {t("search.summary", { total: results()!.total, files: results()!.files.length, ms: elapsed() })}
+            {results()!.truncated ? t("search.truncated") : ""}
           </span>
         </Show>
       </div>
@@ -92,17 +93,17 @@ export function SearchPanel() {
           onKeyDown={(e) => {
             if (e.key === "Enter") void run();
           }}
-          placeholder="buscar…"
+          placeholder={t("search.placeholder")}
           spellcheck={false}
           autocomplete="off"
         />
-        <button class="toggle" aria-pressed={flags().caseSensitive} title="diferenciar maiúsculas" onClick={() => toggle("caseSensitive")}>
+        <button class="toggle" aria-pressed={flags().caseSensitive} title={t("search.case")} onClick={() => toggle("caseSensitive")}>
           Aa
         </button>
-        <button class="toggle" aria-pressed={flags().wholeWord} title="palavra inteira" onClick={() => toggle("wholeWord")}>
+        <button class="toggle" aria-pressed={flags().wholeWord} title={t("search.word")} onClick={() => toggle("wholeWord")}>
           W
         </button>
-        <button class="toggle" aria-pressed={flags().regex} title="expressão regular" onClick={() => toggle("regex")}>
+        <button class="toggle" aria-pressed={flags().regex} title={t("search.regex")} onClick={() => toggle("regex")}>
           .*
         </button>
       </div>

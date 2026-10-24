@@ -10,6 +10,8 @@ export function openPalette(mode: PaletteMode, initial = mode === "command" ? ":
   setPalette({ mode, initial });
 }
 
+export const [prefsOpen, setPrefsOpen] = createSignal(false);
+
 /** Where the keyboard is; drives the mode badge and the hint bar. */
 export type Area = "editor" | "terminal" | "tree" | "panel" | "none";
 export const [area, setArea] = createSignal<Area>("none");

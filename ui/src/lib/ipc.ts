@@ -2,6 +2,7 @@
 // filesystem or processes directly; everything goes through here.
 import { Channel, invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+import { errorText } from "./i18n";
 
 export interface DirEntry {
   name: string;
@@ -92,13 +93,37 @@ export interface NewSession {
   rows: number;
 }
 
+export type ThemeVariant = "dark" | "light";
+
+export interface ThemeInfo {
+  id: string;
+  name: string;
+  variant: ThemeVariant;
+}
+
+export interface ThemeList {
+  /** Folder the schemes are read from. */
+  dir: string;
+  themes: ThemeInfo[];
+}
+
+export interface ThemeTokens extends ThemeInfo {
+  /** CSS custom property (plus `color-scheme`) to value. */
+  tokens: Record<string, string>;
+}
+
 export interface CoreError {
   kind: string;
   message: string;
+  /** The variable part of the message (a path, a name), for translation. */
+  detail?: string;
 }
 
 export function errorMessage(e: unknown): string {
-  if (e && typeof e === "object" && "message" in e) return String((e as CoreError).message);
+  if (e && typeof e === "object" && "message" in e) {
+    const err = e as CoreError;
+    return errorText(err.kind, err.detail) ?? String(err.message);
+  }
   return String(e);
 }
 
@@ -118,6 +143,8 @@ export const core = {
     invoke<SearchResults>("search_text", { query, options }),
   cancelSearch: () => invoke<void>("cancel_search"),
   quit: () => invoke<void>("quit"),
+  listThemes: () => invoke<ThemeList>("list_themes"),
+  loadTheme: (id: string) => invoke<ThemeTokens>("load_theme", { id }),
   onFsChange: (cb: (b: FsBatch) => void): Promise<UnlistenFn> =>
     listen<FsBatch>("fs-change", (e) => cb(e.payload)),
 

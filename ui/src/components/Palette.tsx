@@ -1,10 +1,11 @@
 import { createEffect, createMemo, createSignal, For, on, onCleanup, onMount, Show } from "solid-js";
-import { findCommand, parseCommand, suggest, type CommandSpec, type Suggestion } from "../lib/commands";
+import { findCommand, lineToRun, parseCommand, suggest, type CommandSpec, type Suggestion } from "../lib/commands";
 import { segmentsFromIndices } from "../lib/highlight";
 import { core, type FuzzyMatch } from "../lib/ipc";
 import { openFile } from "../state/editor";
 import { palette, setPalette } from "../state/ui";
 import { workspace } from "../state/workspace";
+import { t } from "../lib/i18n";
 
 interface Props {
   commands: CommandSpec[];
@@ -17,6 +18,8 @@ export function Palette(p: Props) {
   let input!: HTMLInputElement;
   const [text, setText] = createSignal(palette()?.initial ?? "");
   const [index, setIndex] = createSignal(0);
+  /** The highlighted suggestion was chosen (arrows, click), not just the first one. */
+  const [picked, setPicked] = createSignal(false);
   const [files, setFiles] = createSignal<FuzzyMatch[]>([]);
   const [error, setError] = createSignal<string | null>(null);
   const isCommand = () => text().startsWith(":");
@@ -28,6 +31,7 @@ export function Palette(p: Props) {
   createEffect(
     on(text, async (q) => {
       setIndex(0);
+      setPicked(false);
       setError(null);
       if (q.startsWith(":") || !workspace()) return setFiles([]);
       const mine = ++seq;
@@ -52,15 +56,10 @@ export function Palette(p: Props) {
     if (isCommand()) {
       const typed = text().trim();
       const s = suggestions()[index()];
-      let line = typed;
-      // A partial name (":th") resolves to the highlighted command first;
-      // an exact name or alias (":q", ":w", ":q!") runs as typed.
       const name = parseCommand(typed)?.name.replace(/!$/, "") ?? "";
       const exact = !!findCommand(p.commands, name);
-      if (s && !exact && !typed.includes(" ") && s.value.trim() !== typed) {
-        if (s.value.endsWith(" ")) return setText(s.value);
-        line = s.value;
-      }
+      const line = lineToRun(typed, s, picked(), exact);
+      if (line === null) return setText(s!.value);
       const err = await p.run(line);
       if (err) setError(err);
       else close();
@@ -75,8 +74,13 @@ export function Palette(p: Props) {
   const onKeyDown = (e: KeyboardEvent) => {
     const n = count();
     if (e.key === "Escape") close();
-    else if (e.key === "ArrowDown" || (e.ctrlKey && e.key === "n")) setIndex((i) => (n ? (i + 1) % n : 0));
-    else if (e.key === "ArrowUp" || (e.ctrlKey && e.key === "p")) setIndex((i) => (n ? (i - 1 + n) % n : 0));
+    else if (e.key === "ArrowDown" || (e.ctrlKey && e.key === "n")) {
+      setIndex((i) => (n ? (i + 1) % n : 0));
+      setPicked(true);
+    } else if (e.key === "ArrowUp" || (e.ctrlKey && e.key === "p")) {
+      setIndex((i) => (n ? (i - 1 + n) % n : 0));
+      setPicked(true);
+    }
     else if (e.key === "Tab" && isCommand()) {
       const s = suggestions()[index()];
       if (s) setText(s.value);
@@ -95,7 +99,7 @@ export function Palette(p: Props) {
             value={text()}
             onInput={(e) => setText(e.currentTarget.value)}
             onKeyDown={onKeyDown}
-            placeholder={workspace() ? "arquivo… (: para comandos)" : ":open para abrir uma pasta"}
+            placeholder={workspace() ? t("palette.files") : t("palette.noWorkspace")}
             spellcheck={false}
             autocomplete="off"
           />
@@ -110,6 +114,7 @@ export function Palette(p: Props) {
                   onMouseMove={() => setIndex(i())}
                   onClick={() => {
                     setIndex(i());
+                    setPicked(true);
                     void accept();
                   }}
                 >
@@ -140,12 +145,12 @@ export function Palette(p: Props) {
               )}
             </For>
             <Show when={workspace() && text() && files().length === 0}>
-              <div class="palette-item dim">nenhum arquivo</div>
+              <div class="palette-item dim">{t("palette.noFiles")}</div>
             </Show>
           </Show>
         </div>
         <div class="palette-footer">
-          <Show when={error()} fallback={<span class="faint">↑↓ navegar · ⏎ abrir · tab completar · esc fechar</span>}>
+          <Show when={error()} fallback={<span class="faint">{t("palette.footer")}</span>}>
             <span class="danger">{error()}</span>
           </Show>
         </div>

@@ -5,6 +5,7 @@ import { Confirm } from "./components/Confirm";
 import { Editor } from "./components/Editor";
 import { FileTree } from "./components/FileTree";
 import { Palette } from "./components/Palette";
+import { Prefs } from "./components/Prefs";
 import { RightPanel } from "./components/RightPanel";
 import { Splitter } from "./components/Splitter";
 import { HintBar, StatusBar } from "./components/StatusBar";
@@ -20,9 +21,11 @@ import { installVimKeys, LEADER_KEYS, type LeaderKey } from "./lib/vim";
 import { KNOWN_AGENTS } from "./lib/agents";
 import * as editor from "./state/editor";
 import * as sessions from "./state/sessions";
-import { setTheme } from "./state/theme";
+import { fontKey } from "./state/prefs";
+import { refreshThemes, setTheme, themes, themesDir } from "./state/theme";
 import * as ui from "./state/ui";
 import * as ws from "./state/workspace";
+import { LOCALES, locale, parseLocale, setLocale, t } from "./lib/i18n";
 
 interface Command extends CommandSpec {
   run: (args: string[]) => Promise<string | void> | string | void;
@@ -37,29 +40,56 @@ const commands: Command[] = [
   {
     name: "open",
     aliases: ["o", "e"],
-    usage: "[pasta|arquivo]",
-    description: "abre uma pasta (caminho absoluto ou ~) ou um arquivo do workspace",
+    get usage() {
+      return t("cmd.open.usage");
+    },
+    get description() {
+      return t("cmd.open.desc");
+    },
     run: async ([path]) => {
       if (!path) return pickFolder();
-      if (isOutsidePath(path)) return (await ws.openWorkspace(path)) ? undefined : "não foi possível abrir a pasta";
-      if (!ws.workspace()) return "abra uma pasta antes";
+      if (isOutsidePath(path)) return (await ws.openWorkspace(path)) ? undefined : t("err.openFolder");
+      if (!ws.workspace()) return t("err.openFolderFirst");
       await editor.openFile(path.replace(/^\.\//, ""));
     },
   },
   {
     name: "theme",
-    argChoices: ["dark", "light", "toggle"],
-    description: "troca o tema",
-    run: ([t = "toggle"]) => {
-      if (t !== "dark" && t !== "light" && t !== "toggle") return `tema desconhecido: ${t}`;
-      setTheme(t);
+    get usage() {
+      return t("cmd.theme.usage");
+    },
+    get description() {
+      return t("cmd.theme.desc");
+    },
+    complete: (before) =>
+      before.length === 0
+        ? [
+            { value: "dark", description: `Phosphor · ${t("theme.dark")}` },
+            { value: "light", description: `Aurora Light · ${t("theme.light")}` },
+            { value: "toggle", description: t("theme.toggle") },
+            { value: "dir", description: t("theme.dir") },
+            ...themes().map((th) => ({ value: th.id, description: `${th.name} · ${t(th.variant === "dark" ? "theme.dark" : "theme.light")}` })),
+          ]
+        : [],
+    run: async ([id = "toggle"]) => {
+      if (id === "dir") {
+        await refreshThemes();
+        return void ui.notify(t("theme.found", { dir: themesDir(), n: themes().length }));
+      }
+      const err = await setTheme(id);
+      void refreshThemes();
+      return err ?? undefined;
     },
   },
   {
     name: "session",
     aliases: ["s", "sess"],
-    usage: "new <agente> [-w <worktree>] | kill | rename | rm | focus",
-    description: "sessões de agente",
+    get usage() {
+      return t("cmd.session.usage");
+    },
+    get description() {
+      return t("cmd.session.desc");
+    },
     complete: (before) => {
       if (before.length === 0) return [...SUBCOMMANDS];
       const sub = before[0];
@@ -90,27 +120,62 @@ const commands: Command[] = [
     },
   },
   {
+    name: "prefs",
+    aliases: ["preferences", "settings", "font"],
+    get description() {
+      return t("cmd.prefs.desc");
+    },
+    run: () => void ui.setPrefsOpen(true),
+  },
+  {
+    name: "tree",
+    aliases: ["files"],
+    usage: "[show|hide]",
+    argChoices: ["show", "hide"],
+    get description() {
+      return t("cmd.tree.desc");
+    },
+    run: ([v]) => ui.toggleTree(v === "show" ? true : v === "hide" ? false : undefined),
+  },
+  {
+    name: "panel",
+    usage: "[show|hide]",
+    argChoices: ["show", "hide"],
+    get description() {
+      return t("cmd.panel.desc");
+    },
+    run: ([v]) => ui.toggleRight(v === "show" ? true : v === "hide" ? false : undefined),
+  },
+  {
     name: "split",
     aliases: ["vs", "vsplit"],
-    description: "divide os terminais: a sessão ativa vai para um painel novo",
+    get description() {
+      return t("cmd.split.desc");
+    },
     run: () => sessions.split(),
   },
   {
     name: "unsplit",
     aliases: ["only"],
-    description: "junta todos os painéis de terminal em um",
+    get description() {
+      return t("cmd.unsplit.desc");
+    },
     run: () => sessions.unsplit(),
   },
   {
     name: "write",
     aliases: ["w"],
-    description: "salva o arquivo atual",
+    get description() {
+      return t("cmd.write.desc");
+    },
     run: () => editor.saveFile(),
   },
   {
     name: "wq",
     aliases: ["x"],
-    description: "salva e fecha o arquivo atual",
+    get description() {
+      return t("cmd.wq.desc");
+    },
     run: async () => {
       await editor.saveFile();
       editor.closeTab();
@@ -120,24 +185,45 @@ const commands: Command[] = [
     name: "quit",
     aliases: ["q", "close"],
     usage: "[!]",
-    description: "fecha a aba atual (:q! descarta alterações)",
+    get description() {
+      return t("cmd.quit.desc");
+    },
     run: ([bang]) => closeCurrent(bang === "!"),
   },
   {
     name: "qall",
     aliases: ["qa", "quitall"],
     usage: "[!]",
-    description: "fecha o app; as sessões continuam no sessiond (:qa! descarta alterações)",
+    get description() {
+      return t("cmd.qall.desc");
+    },
     run: ([bang]) => {
-      if (editor.hasDirtyTabs() && bang !== "!") return "há arquivos não salvos: salve ou use :qa!";
+      if (editor.hasDirtyTabs() && bang !== "!") return t("err.unsavedQuit");
       void core.quit();
     },
   },
   {
     name: "vim",
     argChoices: ["on", "off"],
-    description: "liga ou desliga os atalhos do vim no editor",
+    get description() {
+      return t("cmd.vim.desc");
+    },
     run: ([v]) => editor.setVim(v ? v === "on" : !editor.vimEnabled()),
+  },
+  {
+    name: "lang",
+    aliases: ["language", "idioma"],
+    usage: "[en|pt-BR]",
+    argChoices: LOCALES.map((l) => l.id),
+    get description() {
+      return t("cmd.lang.desc");
+    },
+    run: ([v]) => {
+      if (!v) return void setLocale(locale() === "en" ? "pt-BR" : "en");
+      const l = parseLocale(v);
+      if (!l) return t("err.unknownLocale", { name: v });
+      setLocale(l);
+    },
   },
 ];
 
@@ -145,8 +231,8 @@ const commands: Command[] = [
 function closeCurrent(force: boolean): string | void {
   if (ui.area() === "terminal") return sessions.hideTab();
   const tab = editor.activeTab();
-  if (!tab) return sessions.activeSession() ? sessions.hideTab() : "nada para fechar (:qa fecha o app)";
-  if (tab.dirty && !force) return `${tab.name} tem alterações não salvas: :w ou :q!`;
+  if (!tab) return sessions.activeSession() ? sessions.hideTab() : t("err.nothingToClose");
+  if (tab.dirty && !force) return t("err.tabDirty", { name: tab.name });
   editor.closeTab(tab.path, true);
 }
 
@@ -190,7 +276,7 @@ async function runLine(line: string): Promise<string | void> {
   if (cmd) return cmd.run(args);
   // Not ours: let vim try (`:%s/a/b/g`, `:42`, `:noh`).
   if (editor.vimEx(line)) return;
-  return `comando desconhecido: ${name}`;
+  return t("err.unknownCommand", { name });
 }
 
 export function App() {
@@ -235,11 +321,12 @@ export function App() {
       return;
     }
     if (mod && k === "o") return handled(), void pickFolder();
+    if (mod && !e.shiftKey && e.key === ",") return handled(), ui.setPrefsOpen(true);
     if (e.ctrlKey && k === "tab") {
       handled();
       return inTerm ? sessions.cycleTab(e.shiftKey ? -1 : 1) : editor.cycleTab(e.shiftKey ? -1 : 1);
     }
-    const bare = !mod && !e.altKey && !e.ctrlKey && !ui.palette() && !ui.confirmation();
+    const bare = !mod && !e.altKey && !e.ctrlKey && !ui.palette() && !ui.confirmation() && !ui.prefsOpen();
     const free = bare && !isEditable(document.activeElement);
     // In vim's normal mode the editor is not taking text, so the leader applies.
     const vimNormal = bare && ui.area() === "editor" && editor.vimEnabled() && editor.vimMode() === "normal";
@@ -279,6 +366,12 @@ export function App() {
   });
 
   // Each workspace has its own sessions and pane layout.
+  // A new font changes the cell: re-measure once it has loaded.
+  createEffect(
+    on(fontKey, () => void document.fonts?.ready.then(() => requestAnimationFrame(() => setCell(measureCell()))), {
+      defer: true,
+    }),
+  );
   createEffect(on(() => ws.workspace()?.root, (root) => root && void sessions.refresh()));
   onCleanup(() => {
     window.removeEventListener("keydown", onKey, true);
@@ -345,6 +438,9 @@ export function App() {
       <HintBar />
       <Show when={ui.palette()} keyed>
         <Palette commands={commands} run={runLine} />
+      </Show>
+      <Show when={ui.prefsOpen()}>
+        <Prefs />
       </Show>
       <Show when={ui.confirmation()} keyed>
         {(req) => <Confirm req={req} />}

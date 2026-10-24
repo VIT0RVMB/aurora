@@ -4,6 +4,7 @@ import { core, errorMessage, type DirEntry, type FsBatch, type WorkspaceInfo } f
 import { load, save } from "../lib/storage";
 import { ancestors } from "../lib/tree";
 import { notify } from "./ui";
+import { t } from "../lib/i18n";
 
 const RECENT_MAX = 8;
 
@@ -31,7 +32,7 @@ export async function openWorkspace(path: string): Promise<boolean> {
     await loadDir("");
     return true;
   } catch (e) {
-    notify(`não abriu ${path}: ${errorMessage(e)}`, "error");
+    notify(t("ws.openFailed", { path, err: errorMessage(e) }), "error");
     return false;
   }
 }

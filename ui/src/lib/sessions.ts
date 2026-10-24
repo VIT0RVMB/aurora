@@ -1,6 +1,7 @@
 // Pure helpers for agent sessions: `:session` argument parsing, target lookup
 // and how a status is shown. No IPC here, so it is unit-tested.
 import type { SessionInfo } from "./ipc";
+import { t } from "./i18n";
 
 export type SessionCommand =
   | { sub: "new"; agent: string; worktree?: string; name?: string; args: string[] }
@@ -41,15 +42,15 @@ export function parseSessionCommand(args: string[]): SessionCommand | { error: s
         }
         if (a === "--worktree" || a === "-w") {
           worktree = rest[++i];
-          if (!worktree) return { error: "--worktree pede um nome" };
+          if (!worktree) return { error: t("sess.worktreeName") };
         } else if (a.startsWith("--worktree=")) worktree = a.slice("--worktree=".length);
         else if (a === "--name" || a === "-n") {
           name = rest[++i];
-          if (!name) return { error: "--name pede um nome" };
+          if (!name) return { error: t("sess.nameName") };
         } else if (!agent && !a.startsWith("-")) agent = a;
         else extra.push(a);
       }
-      if (!agent) return { error: "uso: :session new <agente> [--worktree <nome>] [--name <nome>] [-- args]" };
+      if (!agent) return { error: t("sess.usageNew") };
       return { sub: "new", agent, worktree, name, args: extra };
     }
     case "kill":
@@ -59,14 +60,14 @@ export function parseSessionCommand(args: string[]): SessionCommand | { error: s
     case "rename":
       if (rest.length === 1) return { sub: "rename", name: rest[0] };
       if (rest.length === 2) return { sub: "rename", target: rest[0], name: rest[1] };
-      return { error: "uso: :session rename [sessão] <novo-nome>" };
+      return { error: t("sess.usageRename") };
     case "focus":
-      if (!rest[0]) return { error: "uso: :session focus <sessão>" };
+      if (!rest[0]) return { error: t("sess.usageFocus") };
       return { sub: "focus", target: rest[0] };
     case "list":
       return { sub: "list" };
     default:
-      return { error: `subcomando desconhecido: ${rawSub}` };
+      return { error: t("sess.unknownSub", { sub: rawSub }) };
   }
 }
 
@@ -79,14 +80,14 @@ export function resolveSession(
   target: string | undefined,
   activeId: string | null,
 ): SessionInfo | string {
-  if (!target) return list.find((s) => s.id === activeId) ?? "nenhuma sessão ativa";
+  if (!target) return list.find((s) => s.id === activeId) ?? t("sess.noActive");
   const exact = list.find((s) => s.name === target) ?? list.find((s) => displayName(s) === target);
   if (exact) return exact;
   const byId = list.filter((s) => s.id.startsWith(target));
   if (byId.length === 1) return byId[0];
   const byName = list.filter((s) => s.name.startsWith(target));
   if (byName.length === 1) return byName[0];
-  return byName.length > 1 ? `ambíguo: ${byName.map((s) => s.name).join(", ")}` : `sessão não encontrada: ${target}`;
+  return byName.length > 1 ? t("sess.ambiguous", { list: byName.map((s) => s.name).join(", ") }) : t("sess.notFound", { name: target });
 }
 
 /** Titles agents show before there is a topic; they say less than the name. */
@@ -108,18 +109,18 @@ export interface StatusView {
 
 export function statusView(s: Pick<SessionInfo, "status" | "alive" | "exitCode">): StatusView {
   if (!s.alive) {
-    if (s.status === "error") return { glyph: "✗", label: `erro${s.exitCode != null ? ` (${s.exitCode})` : ""}`, tone: "danger" };
-    return { glyph: "■", label: "encerrado", tone: "faint" };
+    if (s.status === "error") return { glyph: "✗", label: s.exitCode != null ? t("status.errorCode", { code: s.exitCode }) : t("status.error"), tone: "danger" };
+    return { glyph: "■", label: t("status.exited"), tone: "faint" };
   }
   switch (s.status) {
     case "running":
-      return { glyph: "●", label: "rodando", tone: "accent" };
+      return { glyph: "●", label: t("status.running"), tone: "accent" };
     case "waiting":
-      return { glyph: "◆", label: "aguardando você", tone: "warn" };
+      return { glyph: "◆", label: t("status.waiting"), tone: "warn" };
     case "done":
-      return { glyph: "✓", label: "terminou", tone: "dim" };
+      return { glyph: "✓", label: t("status.done"), tone: "dim" };
     case "error":
-      return { glyph: "✗", label: "erro", tone: "danger" };
+      return { glyph: "✗", label: t("status.error"), tone: "danger" };
   }
 }
 

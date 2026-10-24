@@ -55,8 +55,8 @@ describe("resolveSession", () => {
     expect(resolveSession(list, "codex", null)).toBe(list[2]);
     expect(resolveSession(list, "b", null)).toBe(list[1]);
     expect(resolveSession(list, "cod", null)).toBe(list[2]);
-    expect(resolveSession(list, "claude", null)).toMatch(/ambíguo/);
-    expect(resolveSession(list, "zzz", null)).toMatch(/não encontrada/);
+    expect(resolveSession(list, "claude", null)).toMatch(/ambiguous/);
+    expect(resolveSession(list, "zzz", null)).toMatch(/not found/);
     expect(resolveSession(list, undefined, "a1")).toBe(list[0]);
     expect(typeof resolveSession(list, undefined, null)).toBe("string");
   });
@@ -64,10 +64,10 @@ describe("resolveSession", () => {
 
 describe("status", () => {
   it("maps states to the four labels plus ended", () => {
-    expect(statusView(s({ status: "waiting" })).label).toBe("aguardando você");
-    expect(statusView(s({ status: "done" })).label).toBe("terminou");
-    expect(statusView(s({ alive: false, status: "error", exitCode: 2 })).label).toBe("erro (2)");
-    expect(statusView(s({ alive: false, status: "done" })).label).toBe("encerrado");
+    expect(statusView(s({ status: "waiting" })).label).toBe("waiting for you");
+    expect(statusView(s({ status: "done" })).label).toBe("done");
+    expect(statusView(s({ alive: false, status: "error", exitCode: 2 })).label).toBe("error (2)");
+    expect(statusView(s({ alive: false, status: "done" })).label).toBe("exited");
   });
 
   it("sorts waiting sessions first and ended last", () => {

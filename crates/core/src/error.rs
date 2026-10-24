@@ -6,32 +6,34 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 pub enum Error {
     #[error("{0}")]
     Io(#[from] std::io::Error),
-    #[error("caminho fora do workspace: {0}")]
+    #[error("path outside the workspace: {0}")]
     OutsideRoot(String),
-    #[error("não é uma pasta: {0}")]
+    #[error("not a folder: {0}")]
     NotDir(String),
-    #[error("arquivo binário")]
+    #[error("binary file")]
     Binary,
-    #[error("arquivo não está em UTF-8")]
+    #[error("file is not UTF-8")]
     NotUtf8,
-    #[error("arquivo grande demais ({0} bytes)")]
+    #[error("file too large ({0} bytes)")]
     TooLarge(u64),
-    #[error("padrão de busca inválido: {0}")]
+    #[error("invalid search pattern: {0}")]
     BadPattern(String),
     #[error("watcher: {0}")]
     Watch(String),
     #[error("git: {0}")]
     Git(String),
-    #[error("não é um repositório git: {0}")]
+    #[error("not a git repository: {0}")]
     NotRepo(String),
-    #[error("worktree tem mudanças não commitadas: {0}")]
+    #[error("worktree has uncommitted changes: {0}")]
     DirtyWorktree(String),
-    #[error("nome inválido: {0}")]
+    #[error("invalid name: {0}")]
     BadName(String),
     #[error("sessiond: {0}")]
     Session(String),
-    #[error("sessiond indisponível: {0}")]
+    #[error("sessiond unavailable: {0}")]
     Daemon(String),
+    #[error("theme: {0}")]
+    BadTheme(String),
 }
 
 impl Error {
@@ -52,16 +54,40 @@ impl Error {
             Error::BadName(_) => "bad_name",
             Error::Session(_) => "session",
             Error::Daemon(_) => "daemon",
+            Error::BadTheme(_) => "bad_theme",
         }
     }
 }
 
-/// Serialized as `{ kind, message }` so the UI can branch on `kind`.
+impl Error {
+    /// The variable part of the message, so the UI can translate the rest.
+    pub fn detail(&self) -> Option<String> {
+        match self {
+            Error::Io(_) | Error::Binary | Error::NotUtf8 => None,
+            Error::TooLarge(n) => Some(n.to_string()),
+            Error::OutsideRoot(s)
+            | Error::NotDir(s)
+            | Error::BadPattern(s)
+            | Error::Watch(s)
+            | Error::Git(s)
+            | Error::NotRepo(s)
+            | Error::DirtyWorktree(s)
+            | Error::BadName(s)
+            | Error::Session(s)
+            | Error::Daemon(s)
+            | Error::BadTheme(s) => Some(s.clone()),
+        }
+    }
+}
+
+/// Serialized as `{ kind, message, detail }` so the UI can branch on `kind`
+/// and show the message in its own language.
 impl Serialize for Error {
     fn serialize<S: Serializer>(&self, s: S) -> std::result::Result<S::Ok, S::Error> {
-        let mut st = s.serialize_struct("Error", 2)?;
+        let mut st = s.serialize_struct("Error", 3)?;
         st.serialize_field("kind", self.kind())?;
         st.serialize_field("message", &self.to_string())?;
+        st.serialize_field("detail", &self.detail())?;
         st.end()
     }
 }

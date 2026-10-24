@@ -13,6 +13,8 @@ export interface TermHandle {
   reset(): void;
   focus(): void;
   applyTheme(): void;
+  /** Picks up a new font family/size from the tokens and refits. */
+  applyFont(): void;
   size(): { cols: number; rows: number };
   /** Plain text of the whole buffer, scrollback included. */
   text(): string;
@@ -69,16 +71,16 @@ function measureAdvance(family: string): number {
 }
 
 export function createTerminal(o: TermOptions): TermHandle {
-  const base = parseFloat(cssVar("--font-size")) || 13;
-  const cellH = parseFloat(cssVar("--cell-h")) || 20;
-  const fontFamily = cssVar("--font-mono") || "monospace";
+  // Read from the tokens each time: preferences can change the font live.
   const font = () => {
+    const base = parseFloat(cssVar("--font-size")) || 13;
+    const cellH = parseFloat(cssVar("--cell-h")) || 20;
+    const fontFamily = cssVar("--font-mono") || "monospace";
     const fontSize = fittedFontSize(base, measureAdvance(fontFamily), window.devicePixelRatio || 1);
     // Rows stay on the app's cell grid.
-    return { fontSize, lineHeight: cellH / fontSize };
+    return { fontFamily, fontSize, lineHeight: cellH / fontSize };
   };
   const term = new Terminal({
-    fontFamily,
     ...font(),
     theme: readTheme(),
     cursorBlink: true,
@@ -149,6 +151,7 @@ export function createTerminal(o: TermOptions): TermHandle {
     reset: () => term.reset(),
     focus: () => term.focus(),
     applyTheme: () => (term.options.theme = readTheme()),
+    applyFont: refont,
     size: () => ({ cols: term.cols, rows: term.rows }),
     type: (data) => term.input(data, true),
     text: () => {

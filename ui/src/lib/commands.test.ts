@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { findCommand, isOutsidePath, parseCommand, suggest, type CommandSpec } from "./commands";
+import { findCommand, isOutsidePath, lineToRun, parseCommand, suggest, type CommandSpec } from "./commands";
 
 const specs: CommandSpec[] = [
   { name: "open", aliases: ["o"], usage: "[pasta|arquivo]", description: "abrir" },
@@ -57,5 +57,34 @@ describe("dynamic completion", () => {
     expect(suggest(specs, ":session k").map((s) => s.value)).toEqual([":session kill"]);
     expect(suggest(specs, ":session new c").map((s) => s.value)).toEqual([":session new claude", ":session new codex"]);
     expect(suggest(specs, ":session new claude ")).toEqual([]);
+  });
+});
+
+describe("lineToRun", () => {
+  const sug = (value: string) => ({ value, label: value, description: "" });
+  it("runs a picked argument suggestion, not the bare command", () => {
+    expect(lineToRun(":theme", sug(":theme catppuccin-mocha"), true, true)).toBe(":theme catppuccin-mocha");
+    expect(lineToRun(":theme", sug(":theme dark"), false, true)).toBe(":theme");
+  });
+  it("completes a partial argument", () => {
+    expect(lineToRun(":theme cat", sug(":theme catppuccin-mocha"), false, true)).toBe(":theme catppuccin-mocha");
+    expect(lineToRun(":theme nope", undefined, false, true)).toBe(":theme nope");
+  });
+  it("keeps exact names and resolves partial ones", () => {
+    expect(lineToRun(":q", sug(":quit"), false, true)).toBe(":q");
+    expect(lineToRun(":th", sug(":theme "), false, false)).toBeNull();
+    expect(lineToRun(":wr", sug(":write"), false, false)).toBe(":write");
+  });
+});
+
+describe("choice descriptions", () => {
+  it("uses a choice's own description, else the command's", () => {
+    const specs: CommandSpec[] = [
+      { name: "theme", description: "tema", complete: () => ["toggle", { value: "nord", description: "Nord · escuro" }] },
+    ];
+    expect(suggest(specs, ":theme ").map((s) => [s.value, s.description])).toEqual([
+      [":theme toggle", "tema"],
+      [":theme nord", "Nord · escuro"],
+    ]);
   });
 });

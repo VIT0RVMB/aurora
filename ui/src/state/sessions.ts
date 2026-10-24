@@ -6,9 +6,11 @@ import * as panes from "../lib/panes";
 import { displayName, sameFolder, sortSessions } from "../lib/sessions";
 import { load, save } from "../lib/storage";
 import type { TermHandle } from "../lib/terminal";
+import { fontKey } from "./prefs";
 import { theme } from "./theme";
 import { confirm, notify, setTerminalVisible, toggleTerminal } from "./ui";
 import { workspace } from "./workspace";
+import { t } from "../lib/i18n";
 
 /** Every session the daemon knows, from all workspaces. */
 export const [all, setAll] = createStore<SessionInfo[]>([]);
@@ -117,6 +119,10 @@ createRoot(() => {
     theme();
     requestAnimationFrame(() => terms.forEach((t) => t.applyTheme()));
   });
+  createEffect(() => {
+    fontKey();
+    requestAnimationFrame(() => terms.forEach((t) => t.applyFont()));
+  });
 });
 
 // ── daemon events ──────────────────────────────────────────────────────────
@@ -128,7 +134,7 @@ function upsert(info: SessionInfo) {
   else setAll(all.length, info);
   const becameWaiting = info.alive && info.status === "waiting" && prev?.status !== "waiting";
   const looking = focusedTerm() === info.id && document.hasFocus();
-  if (becameWaiting && !looking) notify(`${displayName(info)}: aguardando você`, "warn", 8000);
+  if (becameWaiting && !looking) notify(t("sess.waiting", { name: displayName(info) }), "warn", 8000);
 }
 
 function dropSession(id: string) {
@@ -168,7 +174,7 @@ async function reconnect() {
   if (reconnecting) return;
   reconnecting = true;
   setConnected(false);
-  notify("sessiond desconectado; reconectando…", "warn");
+  notify(t("sess.disconnected"), "warn");
   await new Promise((r) => setTimeout(r, 500));
   reconnecting = false;
   await refresh();
@@ -238,22 +244,22 @@ export function rememberSize(cols: number, rows: number) {
 }
 
 export async function create(req: Omit<NewSession, "cols" | "rows">): Promise<string | void> {
-  if (!workspace()) return "abra uma pasta antes";
+  if (!workspace()) return t("err.openFolderFirst");
   try {
     const info = await core.sessionCreate({ ...req, ...lastSize });
     setConnected(true);
     upsert(info);
     await focusSession(info.id);
-    notify(`${info.name} iniciada${info.branch ? ` em ${info.branch}` : ""}`);
+    notify(info.branch ? t("sess.startedOn", { name: info.name, branch: info.branch }) : t("sess.started", { name: info.name }));
   } catch (e) {
     const kind = errorKind(e);
-    if (kind === "not_repo") return "--worktree pede um repositório git";
+    if (kind === "not_repo") return t("sess.needsRepo");
     return errorMessage(e);
   }
 }
 
 export async function kill(s: SessionInfo): Promise<string | void> {
-  if (!s.alive) return `${s.name} já terminou`;
+  if (!s.alive) return t("sess.alreadyEnded", { name: s.name });
   try {
     await core.sessionKill(s.id);
   } catch (e) {
@@ -277,18 +283,18 @@ export async function remove(s: SessionInfo): Promise<string | void> {
     if (s.worktree) {
       const dirty = await core.sessionWorktreeDirty(s.id);
       const choice = await confirm({
-        title: `remover ${s.name}`,
+        title: t("sess.removeTitle", { name: s.name }),
         lines: [
-          ...(s.alive ? [{ text: "a sessão ainda está rodando e será encerrada.", tone: "warn" as const }] : []),
+          ...(s.alive ? [{ text: t("sess.stillRunning"), tone: "warn" as const }] : []),
           { text: `worktree: ${s.worktree}`, tone: "dim" },
           dirty
-            ? { text: "o worktree tem mudanças não commitadas; removê-lo apaga essas mudanças.", tone: "danger" }
-            : { text: `o branch ${s.branch ?? ""} fica no repositório.`, tone: "dim" },
+            ? { text: t("sess.dirtyWorktree"), tone: "danger" }
+            : { text: t("sess.branchStays", { branch: s.branch ?? "" }), tone: "dim" },
         ],
         options: [
-          { key: "w", label: "remover sessão e worktree", tone: dirty ? "danger" : "accent" },
-          { key: "s", label: "só a sessão" },
-          { key: "c", label: "cancelar" },
+          { key: "w", label: t("sess.removeBoth"), tone: dirty ? "danger" : "accent" },
+          { key: "s", label: t("sess.onlySession") },
+          { key: "c", label: t("cancel") },
         ],
       });
       if (choice !== "w" && choice !== "s") return;
@@ -296,20 +302,20 @@ export async function remove(s: SessionInfo): Promise<string | void> {
       force = removeWorktree && dirty;
     } else if (s.alive) {
       const choice = await confirm({
-        title: `remover ${s.name}`,
-        lines: [{ text: "a sessão ainda está rodando e será encerrada.", tone: "warn" }],
+        title: t("sess.removeTitle", { name: s.name }),
+        lines: [{ text: t("sess.stillRunning"), tone: "warn" }],
         options: [
-          { key: "r", label: "encerrar e remover", tone: "danger" },
-          { key: "c", label: "cancelar" },
+          { key: "r", label: t("sess.stopRemove"), tone: "danger" },
+          { key: "c", label: t("cancel") },
         ],
       });
       if (choice !== "r") return;
     }
     await core.sessionRemove(s.id, removeWorktree, force);
     dropSession(s.id);
-    notify(removeWorktree ? `${s.name} e o worktree removidos` : `${s.name} removida`);
+    notify(t(removeWorktree ? "sess.removedBoth" : "sess.removed", { name: s.name }));
   } catch (e) {
-    if (errorKind(e) === "dirty_worktree") return "o worktree ganhou mudanças; tente de novo";
+    if (errorKind(e) === "dirty_worktree") return t("sess.worktreeChanged");
     return errorMessage(e);
   }
 }
@@ -317,7 +323,7 @@ export async function remove(s: SessionInfo): Promise<string | void> {
 /** `Mod+J`: toggles the terminal area, pointing at `:session new` when empty. */
 export function toggleArea() {
   if (!hasTabs() && !here().length) {
-    notify(":session new <agente> cria uma sessão (claude, codex, shell…)");
+    notify(t("sess.newHint"));
     return;
   }
   if (!hasTabs()) {

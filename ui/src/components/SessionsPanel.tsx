@@ -2,6 +2,7 @@ import { createSignal, For, Show } from "solid-js";
 import { modLabel } from "../lib/platform";
 import { displayName, statusView } from "../lib/sessions";
 import * as sessions from "../state/sessions";
+import { t } from "../lib/i18n";
 
 function shortPath(p: string) {
   const parts = p.replace(/\\/g, "/").split("/").filter(Boolean);
@@ -77,17 +78,19 @@ export function SessionsPanel() {
         </For>
         <Show when={list().length === 0}>
           <div class="sessions-empty">
-            <Show when={sessions.connected() !== false} fallback={<span class="danger">sessiond indisponível</span>}>
-              <span class="dim">nenhuma sessão neste workspace</span>
+            <Show when={sessions.connected() !== false} fallback={<span class="danger">{t("sessions.unavailable")}</span>}>
+              <span class="dim">{t("sessions.none")}</span>
             </Show>
             <span class="kbd">:session new claude</span>
             <span class="kbd">:session new codex -w fix-bug</span>
-            <span class="faint">{modLabel}J mostra/esconde terminais</span>
+            <span class="faint">
+              {modLabel}J {t("sessions.toggleTerms")}
+            </span>
           </div>
         </Show>
       </div>
       <Show when={others() > 0}>
-        <div class="sessions-footer faint">+{others()} em outros workspaces</div>
+        <div class="sessions-footer faint">{t("sessions.others", { n: others() })}</div>
       </Show>
     </section>
   );

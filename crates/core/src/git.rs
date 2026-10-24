@@ -32,7 +32,7 @@ fn git(dir: &Path) -> Command {
 }
 
 fn run(cmd: &mut Command) -> Result<Output> {
-    let out = cmd.output().map_err(|e| Error::Git(format!("não foi possível rodar git: {e}")))?;
+    let out = cmd.output().map_err(|e| Error::Git(format!("could not run git: {e}")))?;
     Ok(out)
 }
 
@@ -100,7 +100,7 @@ pub fn worktree_add(repo: &Path, name: &str) -> Result<Worktree> {
     }
     if path.exists() {
         return Err(Error::Git(format!(
-            "{} já existe e não é um worktree deste repositório",
+            "{} already exists and is not a worktree of this repository",
             path.display()
         )));
     }

@@ -29,6 +29,24 @@
   font-size: 11px;
 }
 
+/* Show/hide the side panels; lit while the panel is open. */
+.titlebar-toggle {
+  color: var(--fg-faint);
+  font-size: calc(var(--font-size) + 3px);
+  letter-spacing: 0;
+  padding: 0 var(--cell-w);
+}
+.titlebar-toggle:hover {
+  color: var(--fg);
+}
+.titlebar-toggle.on {
+  color: var(--accent);
+}
+.titlebar-side.right .titlebar-toggle {
+  margin-left: var(--cell-w);
+  margin-right: calc(-1 * var(--cell-w));
+}
+
 /* Hint bar: keys you can press now. */
 .hintbar {
   display: flex;
@@ -297,9 +315,14 @@
   white-space: nowrap;
   overflow: hidden;
 }
-.palette-item > span:first-child {
+.palette-item > span {
   overflow: hidden;
   text-overflow: ellipsis;
+}
+/* The command stays whole; a long description is what gets cut. */
+.palette-item > span:first-child {
+  flex-shrink: 0;
+  max-width: 70%;
 }
 .palette-item.selected {
   background: var(--bg-select);
@@ -588,4 +611,102 @@
 }
 .confirm-option.danger {
   color: var(--danger);
+}
+
+/* Preferences: two columns of choices inside the palette frame. */
+.palette.prefs {
+  width: min(calc(100 * var(--cell-w)), calc(100% - 4 * var(--cell-w)));
+}
+.prefs-hint {
+  margin-left: auto;
+}
+.prefs-body {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1px;
+  background: var(--line);
+}
+.prefs-col {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  background: var(--bg-raised);
+}
+.prefs-head {
+  padding: 0 var(--cell-w);
+  color: var(--accent);
+  border-bottom: 1px solid var(--line);
+}
+.prefs-head:not(:first-child) {
+  border-top: 1px solid var(--line);
+}
+.prefs-list {
+  height: calc(12 * var(--cell-h));
+  overflow-y: auto;
+  outline: none;
+}
+.prefs-list.short {
+  height: auto;
+}
+.prefs-list:focus-within .palette-item.selected,
+.prefs-list:focus .palette-item.selected {
+  background: var(--bg-select);
+}
+.prefs-list .palette-item.selected {
+  background: var(--bg-select-dim);
+  position: relative;
+}
+.prefs-list .palette-item.faint {
+  color: var(--fg-faint);
+}
+.prefs-note {
+  padding: 0 var(--cell-w);
+  border-top: 1px solid var(--line);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.prefs-custom {
+  display: flex;
+  gap: var(--cell-w);
+  padding: 0 var(--cell-w);
+  border-top: 1px solid var(--line);
+}
+.prefs-custom input {
+  flex: 1;
+  min-width: 0;
+}
+.prefs-size {
+  display: flex;
+  align-items: center;
+  gap: var(--cell-w);
+  padding: 0 var(--cell-w);
+}
+.prefs-size button {
+  color: var(--fg-dim);
+}
+.prefs-size button:hover:not(:disabled) {
+  color: var(--accent);
+}
+.prefs-size button:disabled {
+  color: var(--fg-faint);
+}
+.prefs-size input {
+  width: calc(4 * var(--cell-w));
+  text-align: right;
+}
+.prefs-preview {
+  padding: calc(var(--cell-h) / 2) var(--cell-w);
+  border-top: 1px solid var(--line);
+  white-space: pre;
+  overflow: hidden;
+}
+.prefs-preview .kw {
+  color: var(--syn-keyword);
+}
+.prefs-preview .fn {
+  color: var(--syn-function);
+}
+.prefs-preview .str {
+  color: var(--syn-string);
 }

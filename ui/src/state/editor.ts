@@ -10,6 +10,7 @@ import { detectEol, formatBytes, HIGHLIGHT_LIMIT_BYTES, type Eol } from "../lib/
 import { baseName } from "../lib/tree";
 import { notify } from "./ui";
 import { reveal } from "./workspace";
+import { t } from "../lib/i18n";
 
 export interface Tab {
   path: string;
@@ -119,7 +120,7 @@ export async function openFile(path: string, pos?: GotoPos) {
       file = await core.readFile(path);
     } catch (e) {
       const kind = errorKind(e);
-      const why = kind === "binary" ? "arquivo binário" : kind === "not_utf8" ? "não é UTF-8" : errorMessage(e);
+      const why = kind === "binary" ? t("editor.binary") : kind === "not_utf8" ? t("editor.notUtf8") : errorMessage(e);
       notify(`${path}: ${why}`, "warn");
       return;
     }
@@ -146,7 +147,7 @@ export async function openFile(path: string, pos?: GotoPos) {
       language: lang?.name ?? null,
       plain,
     });
-    if (plain) notify(`${baseName(path)} tem ${formatBytes(file.stat.size)}: aberto sem highlighting`, "info");
+    if (plain) notify(t("editor.plain", { name: baseName(path), size: formatBytes(file.stat.size) }), "info");
     if (lang) void lang.load().then((support) => applyToState(path, { effects: languageSlot.reconfigure(support) }));
   }
   activate(path, pos);
@@ -205,7 +206,7 @@ export function closeTab(path = active(), force = false) {
   if (!tab) return;
   if (tab.dirty && !force && pendingClose !== path) {
     pendingClose = path;
-    notify(`${tab.name} tem alterações não salvas. Feche de novo para descartar.`, "warn");
+    notify(t("editor.closeAgain", { name: tab.name }), "warn");
     return;
   }
   pendingClose = null;
@@ -245,7 +246,7 @@ export async function saveFile(path = active()) {
     refreshDirty(path);
     pendingClose = null;
   } catch (e) {
-    notify(`falha ao salvar ${path}: ${errorMessage(e)}`, "error");
+    notify(t("editor.saveFailed", { path, err: errorMessage(e) }), "error");
   }
 }
 
@@ -266,7 +267,7 @@ export async function reloadFromDisk(path: string) {
     });
     refreshDirty(path);
   } catch (e) {
-    notify(`falha ao recarregar ${path}: ${errorMessage(e)}`, "error");
+    notify(t("editor.reloadFailed", { path, err: errorMessage(e) }), "error");
   }
 }
 

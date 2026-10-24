@@ -6,6 +6,7 @@ import * as sessions from "../state/sessions";
 import * as ui from "../state/ui";
 import { message } from "../state/ui";
 import { workspace } from "../state/workspace";
+import { t } from "../lib/i18n";
 
 /** Vim-style mode badge: what the keys do right now. */
 function mode(): { text: string; tone: string } {
@@ -80,27 +81,27 @@ function hints(): Hint[] {
   switch (ui.area()) {
     case "terminal":
       return [
-        { key: `${modLabel}J`, label: "esconder" },
-        { key: `${modLabel}\\`, label: "dividir" },
-        { key: "Ctrl+Tab", label: "próxima" },
-        { key: `${modLabel}⇧A`, label: "sessões" },
-        { key: `${modLabel}⇧P`, label: "comandos" },
+        { key: `${modLabel}J`, label: t("hint.hide") },
+        { key: `${modLabel}\\`, label: t("hint.split") },
+        { key: "Ctrl+Tab", label: t("hint.next") },
+        { key: `${modLabel}⇧A`, label: t("hint.sessions") },
+        { key: `${modLabel}⇧P`, label: t("hint.commands") },
       ];
     case "editor":
       return [
-        { key: "Space", label: "leader" },
-        { key: `${modLabel}P`, label: "find" },
-        { key: ":w", label: "salvar" },
-        { key: ":q", label: "fechar" },
-        { key: ":vim off", label: "sem vim" },
+        { key: "Space", label: t("hint.leader") },
+        { key: `${modLabel}P`, label: t("hint.find") },
+        { key: ":w", label: t("hint.save") },
+        { key: ":q", label: t("hint.close") },
+        { key: ":vim off", label: t("hint.noVim") },
       ];
     default:
       return [
-        { key: "Space", label: "leader" },
-        { key: `${modLabel}P`, label: "find" },
-        { key: ":session new", label: "agente" },
-        { key: `${modLabel}J`, label: "terminais" },
-        { key: ":qa", label: "sair" },
+        { key: "Space", label: t("hint.leader") },
+        { key: `${modLabel}P`, label: t("hint.find") },
+        { key: ":session new", label: t("hint.agent") },
+        { key: `${modLabel}J`, label: t("hint.terminals") },
+        { key: ":qa", label: t("hint.quit") },
       ];
   }
 }

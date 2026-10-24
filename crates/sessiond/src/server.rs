@@ -295,7 +295,7 @@ impl Server {
     }
 
     fn get(&self, id: &str) -> Result<Arc<Session>, String> {
-        self.sessions.lock().get(id).cloned().ok_or_else(|| format!("sessão não encontrada: {id}"))
+        self.sessions.lock().get(id).cloned().ok_or_else(|| format!("session not found: {id}"))
     }
 
     fn broadcast(&self, msg: &ServerMsg) {

@@ -18,6 +18,7 @@ Lightweight, terminal-styled IDE for running coding agents. Tauri 2 + Rust core 
 - A new dependency needs a justification in the PR: weight is a product requirement.
 - Session status comes from agent hooks calling `aurora-sessiond notify`, never from parsing terminal output.
 - Off macOS, Ctrl+letter inside a terminal belongs to the shell; app shortcuts there need Shift.
+- User-facing text goes through `t()` in `ui/src/lib/i18n.ts`, with both `en` (default) and `pt-BR` entries. Core error messages are English; the UI translates them by `kind` + `detail`.
 - Colors come from tokens in `ui/src/styles/tokens.css`; sizes are in cells (`var(--cell-w)`, `var(--cell-h)`).
 - No `git push`, `reset` or `stash` without asking.
 
@@ -38,7 +39,7 @@ Build plan: "IDE de Agentes — Plano de Construção" (https://claude.ai/artifa
 
 - Phase 1 (editor, tree, fuzzy open, search, themes) — done.
 - Phase 2 (sessiond, PTY sessions, reattach with scrollback, worktrees, hooks, panes/tabs/splits) — done. Acceptance (5 agents, app closed and reopened, history back) is covered by `crates/sessiond/tests/daemon.rs` and the smoke test.
-- Done after Phase 2: session auto-title from OSC 0/2 (`sessiond/src/title.rs`, `displayName` in `ui/src/lib/sessions.ts`; `:session rename` pins a name), green-phosphor vim look (tokens, mode badge, hint bar, `:` opens the palette, Space leader), overlay titlebar, terminal cell-width fix (`fittedFontSize` in `ui/src/lib/cells.ts`).
+- Done after Phase 2: session auto-title from OSC 0/2 (`sessiond/src/title.rs`, `displayName` in `ui/src/lib/sessions.ts`; `:session rename` pins a name), green-phosphor vim look (tokens, mode badge, hint bar, `:` opens the palette, Space leader), overlay titlebar, terminal cell-width fix (`fittedFontSize` in `ui/src/lib/cells.ts`). Base16/Base24 color schemes: `.yaml` files in `<data dir>/themes`, mapped to tokens in `core::theme`, picked with `:theme <id>` (`:theme dir` shows the folder).
 - Next: Phase 3 — markdown read mode (comrak GFM in core), side-by-side preview with synced scroll, mermaid on demand, code highlight in markdown, per-session diff of the worktree, tree marks for files each session touched, keyboard-navigable links between `.md`. Consider using ZenNotes for the note-taking part and keeping Phase 3 to the agent-specific pieces (diff, tree marks).
 - Then Phase 4 — `.excalidraw` viewer, sandboxed `.html` preview, native notification when a session waits, palette history/autocomplete, configurable keys/themes.
 

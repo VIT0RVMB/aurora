@@ -2,6 +2,7 @@ import { createEffect, createMemo, For, on, onCleanup, onMount, Show } from "sol
 import { modLabel } from "../lib/platform";
 import { displayName, statusView } from "../lib/sessions";
 import * as sessions from "../state/sessions";
+import { t } from "../lib/i18n";
 
 /** The terminal area: side-by-side panes, each with its own session tabs. */
 export function Terminals() {
@@ -81,8 +82,8 @@ function TerminalPane(p: { id: number }) {
                 <span class="tab-name">{info() ? displayName(info()!) : id}</span>
                 <button
                   class="tab-close"
-                  aria-label="esconder"
-                  title="esconder (a sessão continua rodando)"
+                  aria-label={t("term.hide")}
+                  title={t("term.hideTitle")}
                   onMouseDown={(e) => {
                     e.stopPropagation();
                     sessions.hideTab(id);
@@ -98,19 +99,21 @@ function TerminalPane(p: { id: number }) {
       <Show when={sessions.byId(active())?.alive === false}>
         <div class="banner">
           <span class="dim">
-            sessão encerrada{sessions.byId(active())?.exitCode != null ? ` (código ${sessions.byId(active())!.exitCode})` : ""}.
+            {sessions.byId(active())?.exitCode != null
+              ? t("term.endedCode", { code: sessions.byId(active())!.exitCode! })
+              : t("term.ended")}
           </span>
-          <span class="faint">:session rm remove</span>
+          <span class="faint">{t("term.rmHint")}</span>
         </div>
       </Show>
       <div ref={body} class="term-body" classList={{ hidden: !active() }} />
       <Show when={!active()}>
         <div class="editor-empty">
           <div>
-            <span class="kbd">:session new claude</span> <span class="dim">nova sessão</span>
+            <span class="kbd">:session new claude</span> <span class="dim">{t("term.new")}</span>
           </div>
           <div>
-            <span class="kbd">{modLabel}J</span> <span class="dim">esconder terminais</span>
+            <span class="kbd">{modLabel}J</span> <span class="dim">{t("term.hideAll")}</span>
           </div>
         </div>
       </Show>

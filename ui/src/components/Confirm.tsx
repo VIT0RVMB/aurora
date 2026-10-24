@@ -1,5 +1,6 @@
 import { For, onCleanup, onMount } from "solid-js";
 import type { ConfirmRequest } from "../state/ui";
+import { t } from "../lib/i18n";
 
 /** Modal question answered by a single key (or a click); Esc cancels. */
 export function Confirm(p: { req: ConfirmRequest }) {
@@ -32,7 +33,7 @@ export function Confirm(p: { req: ConfirmRequest }) {
               </button>
             )}
           </For>
-          <span class="faint">esc cancela</span>
+          <span class="faint">{t("confirm.esc")}</span>
         </div>
       </div>
     </div>

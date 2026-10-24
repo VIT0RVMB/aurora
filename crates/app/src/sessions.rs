@@ -71,7 +71,7 @@ fn find(c: &Client, id: &str) -> aurora_core::Result<SessionInfo> {
     c.list()?
         .into_iter()
         .find(|s| s.id == id)
-        .ok_or_else(|| Error::Session(format!("sessão não encontrada: {id}")))
+        .ok_or_else(|| Error::Session(format!("session not found: {id}")))
 }
 
 #[tauri::command]

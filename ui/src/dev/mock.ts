@@ -139,6 +139,126 @@ function input(s: MockSession, data: string) {
   }
 }
 
+// Two schemes as the core maps them (`core::theme::load`).
+const themes: Record<string, any>[] = [
+  {
+    "id": "catppuccin-mocha",
+    "name": "Catppuccin Mocha",
+    "variant": "dark",
+    "tokens": {
+      "--accent": "#89b4fa",
+      "--accent-2": "#cba6f7",
+      "--accent-fg": "#1e1e2e",
+      "--ansi-black": "#181825",
+      "--ansi-blue": "#89b4fa",
+      "--ansi-bright-black": "#45475a",
+      "--ansi-bright-blue": "#74c7ec",
+      "--ansi-bright-cyan": "#89dceb",
+      "--ansi-bright-green": "#a6e3a1",
+      "--ansi-bright-magenta": "#f5c2e7",
+      "--ansi-bright-red": "#eba0ac",
+      "--ansi-bright-white": "#b4befe",
+      "--ansi-bright-yellow": "#f5e0dc",
+      "--ansi-cyan": "#94e2d5",
+      "--ansi-green": "#a6e3a1",
+      "--ansi-magenta": "#cba6f7",
+      "--ansi-red": "#f38ba8",
+      "--ansi-white": "#cdd6f4",
+      "--ansi-yellow": "#f9e2af",
+      "--bg": "#1e1e2e",
+      "--bg-hover": "#222231",
+      "--bg-panel": "#1c1c2a",
+      "--bg-raised": "#181825",
+      "--bg-select": "#313244",
+      "--bg-select-dim": "#272838",
+      "--cursor": "#cdd6f4",
+      "--danger": "#f38ba8",
+      "--fg": "#cdd6f4",
+      "--fg-dim": "#585b70",
+      "--fg-faint": "#45475a",
+      "--info": "#94e2d5",
+      "--line": "#252535",
+      "--line-strong": "#3b3d4f",
+      "--match": "#89b4fa",
+      "--match-bg": "rgba(137, 180, 250, 0.18)",
+      "--selection": "rgba(49, 50, 68, 0.8)",
+      "--syn-attr": "#fab387",
+      "--syn-comment": "#45475a",
+      "--syn-function": "#89b4fa",
+      "--syn-heading": "#89b4fa",
+      "--syn-keyword": "#cba6f7",
+      "--syn-link": "#94e2d5",
+      "--syn-number": "#fab387",
+      "--syn-operator": "#585b70",
+      "--syn-property": "#f38ba8",
+      "--syn-string": "#a6e3a1",
+      "--syn-tag": "#f38ba8",
+      "--syn-type": "#f9e2af",
+      "--syn-variable": "#cdd6f4",
+      "--warn": "#f9e2af",
+      "color-scheme": "dark"
+    }
+  },
+  {
+    "id": "gruvbox-light",
+    "name": "Gruvbox Light",
+    "variant": "light",
+    "tokens": {
+      "--accent": "#458588",
+      "--accent-2": "#b16286",
+      "--accent-fg": "#fbf1c7",
+      "--ansi-black": "#ebdbb2",
+      "--ansi-blue": "#458588",
+      "--ansi-bright-black": "#bdae93",
+      "--ansi-bright-blue": "#076678",
+      "--ansi-bright-cyan": "#427b58",
+      "--ansi-bright-green": "#79740e",
+      "--ansi-bright-magenta": "#8f3f71",
+      "--ansi-bright-red": "#9d0006",
+      "--ansi-bright-white": "#1d2021",
+      "--ansi-bright-yellow": "#b57614",
+      "--ansi-cyan": "#689d6a",
+      "--ansi-green": "#98971a",
+      "--ansi-magenta": "#b16286",
+      "--ansi-red": "#cc241d",
+      "--ansi-white": "#3c3836",
+      "--ansi-yellow": "#d79921",
+      "--bg": "#fbf1c7",
+      "--bg-hover": "#e2d2ab",
+      "--bg-panel": "#f5e8bf",
+      "--bg-raised": "#ebdbb2",
+      "--bg-select": "#d5c4a1",
+      "--bg-select-dim": "#decda8",
+      "--cursor": "#3c3836",
+      "--danger": "#cc241d",
+      "--fg": "#3c3836",
+      "--fg-dim": "#7c6f64",
+      "--fg-faint": "#bdae93",
+      "--info": "#689d6a",
+      "--line": "#e0d0aa",
+      "--line-strong": "#c9b99a",
+      "--match": "#458588",
+      "--match-bg": "rgba(69, 133, 136, 0.18)",
+      "--selection": "rgba(213, 196, 161, 0.8)",
+      "--syn-attr": "#d65d0e",
+      "--syn-comment": "#bdae93",
+      "--syn-function": "#458588",
+      "--syn-heading": "#458588",
+      "--syn-keyword": "#b16286",
+      "--syn-link": "#689d6a",
+      "--syn-number": "#d65d0e",
+      "--syn-operator": "#7c6f64",
+      "--syn-property": "#cc241d",
+      "--syn-string": "#98971a",
+      "--syn-tag": "#cc241d",
+      "--syn-type": "#d79921",
+      "--syn-variable": "#3c3836",
+      "--warn": "#d79921",
+      "color-scheme": "light"
+    }
+  }
+];
+
 export function installMock() {
   mockWindows("main");
   mockIPC((cmd, args) => {
@@ -189,6 +309,13 @@ export function installMock() {
         s.info = { ...s.info, name: a.name, renamed: true };
         void emit("session-update", s.info);
         return s.info;
+      }
+      case "list_themes":
+        return { dir: "/mock/themes", themes: themes.map(({ id, name, variant }) => ({ id, name, variant })) };
+      case "load_theme": {
+        const t = themes.find((x) => x.id === a.id);
+        if (!t) throw { kind: "bad_theme", message: `tema: tema não encontrado: ${a.id}` };
+        return t;
       }
       case "session_worktree_dirty":
         return a.id.endsWith("2");

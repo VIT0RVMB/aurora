@@ -1,6 +1,7 @@
 // Terminal panes: side-by-side splits, each with its own tabs. A session sits
 // in exactly one pane (one xterm cannot render in two places). Pure functions
 // over an immutable layout so the state module stays thin and this is tested.
+import { t } from "./i18n";
 
 export interface Pane {
   id: number;
@@ -58,7 +59,7 @@ export function close(l: Layout, session: string): Layout {
 /** Moves the focused pane's active session into a new pane to its right. */
 export function split(l: Layout): Layout | string {
   const src = focusedPane(l);
-  if (!src.active || src.tabs.length < 2) return "abra outra sessão neste painel para dividir";
+  if (!src.active || src.tabs.length < 2) return t("sess.paneNeedsTwo");
   const moving = src.active;
   const rest = src.tabs.filter((t) => t !== moving);
   const id = nextId(l);

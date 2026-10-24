@@ -14,6 +14,7 @@ import {
   tabs,
   type Tab,
 } from "../state/editor";
+import { t } from "../lib/i18n";
 
 /** Tab label; adds the parent folder when two open files share a name. */
 function label(tab: Tab, all: Tab[]): string {
@@ -66,14 +67,14 @@ export function Editor() {
           <div class="banner">
             <Show
               when={kind() === "changed"}
-              fallback={<span class="danger">arquivo removido do disco. Salvar recria o arquivo.</span>}
+              fallback={<span class="danger">{t("editor.deleted")}</span>}
             >
-              <span class="warn">mudou no disco e você tem alterações não salvas.</span>
+              <span class="warn">{t("editor.changed")}</span>
               <button class="banner-btn" onClick={() => reloadFromDisk(active()!)}>
-                [recarregar do disco]
+                {t("editor.reload")}
               </button>
               <button class="banner-btn" onClick={() => keepMine(active()!)}>
-                [manter o meu]
+                {t("editor.keep")}
               </button>
             </Show>
           </div>
@@ -89,13 +90,13 @@ export function Editor() {
       <Show when={!active()}>
         <div class="editor-empty">
           <div>
-            <span class="kbd">{modLabel}P</span> <span class="dim">abrir arquivo</span>
+            <span class="kbd">{modLabel}P</span> <span class="dim">{t("empty.openFile")}</span>
           </div>
           <div>
-            <span class="kbd">{modLabel}⇧F</span> <span class="dim">buscar no workspace</span>
+            <span class="kbd">{modLabel}⇧F</span> <span class="dim">{t("empty.search")}</span>
           </div>
           <div>
-            <span class="kbd">:</span> <span class="dim">comandos</span>
+            <span class="kbd">:</span> <span class="dim">{t("empty.commands")}</span>
           </div>
         </div>
       </Show>

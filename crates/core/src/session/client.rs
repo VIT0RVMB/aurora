@@ -114,7 +114,7 @@ impl Client {
         let hello: Hello = client.call(Request::Hello { version: PROTOCOL_VERSION })?;
         if hello.version != PROTOCOL_VERSION {
             return Err(Error::Daemon(format!(
-                "versão do protocolo {} (esperada {PROTOCOL_VERSION}); encerre o sessiond antigo (pid {})",
+                "protocol version {} (expected {PROTOCOL_VERSION}); stop the old sessiond (pid {})",
                 hello.version, hello.pid
             )));
         }
@@ -135,7 +135,7 @@ impl Client {
 
     fn call<T: DeserializeOwned>(&self, req: Request) -> Result<T> {
         if !self.is_alive() {
-            return Err(Error::Daemon("conexão encerrada".into()));
+            return Err(Error::Daemon("connection closed".into()));
         }
         let id = self.next_id.fetch_add(1, Ordering::Relaxed);
         let (tx, rx) = mpsc::channel();
@@ -152,10 +152,10 @@ impl Client {
                 return Err(Error::Daemon("sem resposta".into()));
             }
             Err(mpsc::RecvTimeoutError::Disconnected) => {
-                return Err(Error::Daemon("conexão encerrada".into()));
+                return Err(Error::Daemon("connection closed".into()));
             }
         };
-        serde_json::from_value(value).map_err(|e| Error::Session(format!("resposta inválida: {e}")))
+        serde_json::from_value(value).map_err(|e| Error::Session(format!("invalid reply: {e}")))
     }
 
     pub fn list(&self) -> Result<Vec<SessionInfo>> {
