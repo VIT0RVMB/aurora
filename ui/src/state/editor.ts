@@ -1,15 +1,16 @@
 import { EditorSelection, EditorState, type StateEffect, type Text, type TransactionSpec } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
-import { createSignal } from "solid-js";
+import { createEffect, createRoot, createSignal, on } from "solid-js";
 import { createStore, produce } from "solid-js/store";
 import { getCM, Vim } from "@replit/codemirror-vim";
 import { createEditorState, languageFor, languageSlot, vimExtension, vimSlot } from "../lib/editor-setup";
 import { load, save } from "../lib/storage";
 import { core, errorKind, errorMessage, type FsBatch } from "../lib/ipc";
 import { detectEol, formatBytes, HIGHLIGHT_LIMIT_BYTES, type Eol } from "../lib/text";
+import * as panes from "../lib/panes";
 import { baseName } from "../lib/tree";
-import { notify } from "./ui";
-import { reveal } from "./workspace";
+import { notify, openPalette, setCenterView } from "./ui";
+import { reveal, workspace } from "./workspace";
 import { t } from "../lib/i18n";
 
 export interface Tab {
@@ -33,7 +34,13 @@ interface DocSlot {
 }
 
 export const [tabs, setTabs] = createStore<Tab[]>([]);
-export const [active, setActive] = createSignal<string | null>(null);
+/**
+ * Editor groups: splits of the editor area, each with its own tabs and view.
+ * A file sits in one group at a time; `tabs` holds what every open file is.
+ */
+export const [groups, setGroupsSignal] = createSignal<panes.Layout>(panes.emptyLayout());
+/** The focused group's file. */
+export const active = () => panes.focusedPane(groups()).active;
 export const [cursor, setCursor] = createSignal({ line: 1, col: 1 });
 
 export type VimMode = "normal" | "insert" | "visual" | "v-line" | "v-block" | "replace";
@@ -41,22 +48,102 @@ export const [vimEnabled, setVimEnabled] = createSignal(load("vim", true));
 export const [vimMode, setVimMode] = createSignal<VimMode>("normal");
 
 // Editor states live outside the reactive store: they are large and immutable.
+// A file shown in a group lives in that group's view; `docs` holds the rest
+// (and a stale copy of the shown ones, refreshed whenever they leave a view).
 const docs = new Map<string, DocSlot>();
-let view: EditorView | null = null;
+const views = new Map<number, EditorView>();
+/** What each view displays right now. */
+const shownIn = new Map<number, string | null>();
 let pendingClose: string | null = null;
 
-export function attachView(v: EditorView) {
-  view = v;
+/** The focused group's view. */
+const view = () => views.get(groups().focused) ?? null;
+
+function viewOf(path: string): EditorView | null {
+  for (const [id, p] of shownIn) if (p === path) return views.get(id) ?? null;
+  return null;
+}
+
+function wantedIn(l: panes.Layout, id: number): string | null {
+  return l.panes.find((p) => p.id === id)?.active ?? null;
+}
+
+/**
+ * Applies a new group layout. Views about to show something else hand their
+ * state back to `docs` first: a group that disappears unmounts its view
+ * while the layout is being set.
+ */
+function setGroups(l: panes.Layout) {
+  for (const [id, v] of views) {
+    const cur = shownIn.get(id) ?? null;
+    if (cur === wantedIn(l, id)) continue;
+    const slot = cur ? docs.get(cur) : undefined;
+    if (slot) {
+      slot.state = v.state;
+      slot.scroll = v.scrollSnapshot();
+    }
+    shownIn.delete(id);
+  }
+  setGroupsSignal(l);
+  for (const id of views.keys()) showGroup(id);
+}
+
+/** Puts the group's file into its view, if it is not there already. */
+function showGroup(id: number) {
+  const v = views.get(id);
+  if (!v) return;
+  const want = wantedIn(groups(), id);
+  if (shownIn.has(id) && shownIn.get(id) === want) return;
+  shownIn.set(id, want);
+  const slot = want ? docs.get(want) : undefined;
+  v.setState(slot?.state ?? EditorState.create({ doc: "" }));
+  if (slot?.scroll) v.dispatch({ effects: slot.scroll });
+  watchVimMode(id);
+}
+
+/** A group's view was created; it shows the group's file. */
+export function attachView(id: number, v: EditorView) {
+  views.set(id, v);
+  shownIn.delete(id);
+  showGroup(id);
+}
+
+export function detachView(id: number) {
+  const v = views.get(id);
+  const cur = shownIn.get(id);
+  const slot = cur ? docs.get(cur) : undefined;
+  if (v && slot) slot.state = v.state;
+  views.delete(id);
+  shownIn.delete(id);
+  v?.destroy();
 }
 
 /** Vim's adapter is recreated with each state, so listen again after a swap. */
-function watchVimMode() {
-  setVimMode("normal");
-  const cm = view && getCM(view);
+function watchVimMode(id: number) {
+  const v = views.get(id);
+  if (id === groups().focused) setVimMode("normal");
+  const cm = v && getCM(v);
   cm?.on("vim-mode-change", (e: { mode: string; subMode?: string }) => {
+    if (id !== groups().focused) return;
     const sub = e.subMode === "linewise" ? "v-line" : e.subMode === "blockwise" ? "v-block" : null;
     setVimMode((e.mode === "visual" && sub) || (e.mode as VimMode));
   });
+}
+
+/** A click or focus inside a group makes it the one commands act on. */
+export function focusGroup(id: number) {
+  if (groups().focused === id) return;
+  setGroupsSignal(panes.focus(groups(), id));
+  setVimMode("normal");
+  syncCursor();
+}
+
+function syncCursor() {
+  const st = view()?.state;
+  if (!st) return;
+  const head = st.selection.main.head;
+  const line = st.doc.lineAt(head);
+  setCursor({ line: line.number, col: head - line.from + 1 });
 }
 
 /** Turns vim keybindings on or off in every open buffer. */
@@ -64,20 +151,21 @@ export function setVim(on: boolean) {
   setVimEnabled(on);
   save("vim", on);
   for (const path of docs.keys()) applyToState(path, { effects: vimSlot.reconfigure(on ? vimExtension() : []) });
-  watchVimMode();
+  for (const id of views.keys()) watchVimMode(id);
 }
 
 /** Runs an ex command (`:%s/a/b/g`, `:42`) in the active buffer. False without one. */
 export function vimEx(line: string): boolean {
-  const cm = view && active() && vimEnabled() ? getCM(view) : null;
+  const v = view();
+  const cm = v && active() && vimEnabled() ? getCM(v) : null;
   if (!cm) return false;
   Vim.handleEx(cm as Parameters<typeof Vim.handleEx>[0], line.replace(/^:/, ""));
-  view!.focus();
+  v!.focus();
   return true;
 }
 
 export function focusEditor() {
-  view?.focus();
+  view()?.focus();
 }
 
 export function activeTab(): Tab | undefined {
@@ -93,8 +181,7 @@ function updateTab(path: string, fn: (t: Tab) => void) {
 }
 
 function currentState(path: string): EditorState | undefined {
-  if (view && active() === path) return view.state;
-  return docs.get(path)?.state;
+  return viewOf(path)?.state ?? docs.get(path)?.state;
 }
 
 function refreshDirty(path: string) {
@@ -156,38 +243,49 @@ export async function openFile(path: string, pos?: GotoPos) {
 function applyToState(path: string, spec: TransactionSpec) {
   const slot = docs.get(path);
   if (!slot) return;
-  if (view && active() === path) view.dispatch(spec);
+  const v = viewOf(path);
+  if (v) v.dispatch(spec);
   else slot.state = slot.state.update(spec).state;
 }
 
-function stash() {
-  const cur = active();
-  const slot = cur ? docs.get(cur) : undefined;
-  if (view && slot) {
-    slot.state = view.state;
-    slot.scroll = view.scrollSnapshot();
-  }
+/** Files opened lately in this workspace, newest first (the home screen lists them). */
+export interface RecentFile {
+  path: string;
+  at: number;
+}
+const [recentFiles, setRecentFiles] = createSignal<RecentFile[]>([]);
+export { recentFiles };
+const recentKey = () => (workspace() ? `recentFiles:${workspace()!.root}` : null);
+createRoot(() =>
+  createEffect(
+    on(recentKey, (k) => setRecentFiles(k ? load<RecentFile[]>(k, []) : [])),
+  ),
+);
+
+function rememberFile(path: string) {
+  const k = recentKey();
+  if (!k) return;
+  const next = [{ path, at: Date.now() }, ...recentFiles().filter((r) => r.path !== path)].slice(0, 12);
+  setRecentFiles(next);
+  save(k, next);
 }
 
+/** Shows a file: in its group if it has one, else in the focused group. */
 export function activate(path: string, pos?: GotoPos) {
-  const slot = docs.get(path);
-  if (!slot || !view) return;
+  if (!docs.has(path)) return;
+  setCenterView("auto");
   if (active() !== path) {
-    stash();
-    view.setState(slot.state);
-    watchVimMode();
-    setActive(path);
-    if (slot.scroll) view.dispatch({ effects: slot.scroll });
-    const head = slot.state.selection.main.head;
-    const line = slot.state.doc.lineAt(head);
-    setCursor({ line: line.number, col: head - line.from + 1 });
+    setGroups(panes.show(groups(), path));
+    rememberFile(path);
+    syncCursor();
     void reveal(path);
   }
   if (pos) goto(pos);
-  view.focus();
+  view()?.focus();
 }
 
 function goto({ line, col = 1, length = 0 }: GotoPos) {
+  const view = viewOf(active() ?? "");
   if (!view) return;
   const doc = view.state.doc;
   const l = doc.line(Math.min(Math.max(line, 1), doc.lines));
@@ -210,23 +308,67 @@ export function closeTab(path = active(), force = false) {
     return;
   }
   pendingClose = null;
-  const idx = tabs.findIndex((t) => t.path === path);
   const wasActive = active() === path;
   docs.delete(path);
   setTabs((list) => list.filter((t) => t.path !== path));
-  if (wasActive) {
-    setActive(null);
-    const next = tabs[Math.min(idx, tabs.length - 1)];
-    if (next) activate(next.path);
-    else view?.setState(EditorState.create({ doc: "" }));
+  // Its group shows the neighbouring tab; an emptied group closes.
+  setGroups(panes.close(groups(), path));
+  const next = active();
+  if (wasActive && next) {
+    rememberFile(next);
+    syncCursor();
+    void reveal(next);
+    view()?.focus();
   }
 }
 
+/** Next/previous tab inside the focused group. */
 export function cycleTab(delta: number) {
-  if (tabs.length < 2) return;
-  const idx = tabs.findIndex((t) => t.path === active());
-  const next = tabs[(idx + delta + tabs.length) % tabs.length];
-  activate(next.path);
+  const g = panes.focusedPane(groups());
+  if (g.tabs.length < 2 || !g.active) return;
+  const i = g.tabs.indexOf(g.active);
+  activate(g.tabs[(i + delta + g.tabs.length) % g.tabs.length]);
+}
+
+/**
+ * Splits the editor: the active file moves to a new group beside (`row`) or
+ * below (`column`) it. With one file there the new group starts empty and
+ * the file picker opens to fill it.
+ */
+export function split(dir: panes.Dir = "row") {
+  const g = panes.focusedPane(groups());
+  setCenterView("auto");
+  setGroups(panes.split(groups(), dir, true)!);
+  const id = groups().focused;
+  // After the frame: a palette that ran this hands focus back to the old group first.
+  requestAnimationFrame(() => {
+    focusGroup(id);
+    if (g.tabs.length < 2) openPalette("files");
+    else view()?.focus();
+  });
+}
+
+/** Folds every editor group back into one. */
+export function unsplit() {
+  setGroups(panes.unsplit(groups()));
+}
+
+export function focusNextGroup(delta = 1) {
+  const l = panes.focusPane(groups(), delta);
+  focusGroup(l.focused);
+  view()?.focus();
+}
+
+/** Closes the focused group when it has no files (a split nothing was opened in). */
+export function closeEmptyGroup(): boolean {
+  const l = groups();
+  const g = panes.focusedPane(l);
+  if (g.tabs.length > 0 || l.panes.length < 2) return false;
+  const at = l.panes.indexOf(g);
+  const rest = l.panes.filter((p) => p !== g);
+  setGroups({ ...l, panes: rest, focused: rest[Math.max(0, at - 1)].id });
+  view()?.focus();
+  return true;
 }
 
 export async function saveFile(path = active()) {

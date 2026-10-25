@@ -76,9 +76,17 @@ pub fn command_line(program: &str, args: &[String], hooks: Hooks, notify_exe: &P
 
 /// Inline settings JSON. Claude merges hooks from `--settings` with the
 /// user's own, so nothing in the worktree or in `~/.claude` changes.
+/// Status is best effort: a hook that can't reach Aurora stays silent and
+/// never shows up as an error inside the agent.
 pub fn claude_settings(notify_exe: &Path) -> String {
-    let cmd = |event: &str| serde_json::json!([{ "hooks": [{ "type": "command", "command": format!("{} notify --event {event}", shell_quote(&notify_exe.to_string_lossy())) }] }]);
-    let matching = |matcher: &str, event: &str| serde_json::json!([{ "matcher": matcher, "hooks": [{ "type": "command", "command": format!("{} notify --event {event}", shell_quote(&notify_exe.to_string_lossy())) }] }]);
+    let line = |event: &str| {
+        format!(
+            "{} notify --event {event} >/dev/null 2>&1 || true",
+            shell_quote(&notify_exe.to_string_lossy())
+        )
+    };
+    let cmd = |event: &str| serde_json::json!([{ "hooks": [{ "type": "command", "command": line(event) }] }]);
+    let matching = |matcher: &str, event: &str| serde_json::json!([{ "matcher": matcher, "hooks": [{ "type": "command", "command": line(event) }] }]);
     serde_json::json!({
         "hooks": {
             "UserPromptSubmit": cmd("running"),
@@ -145,7 +153,7 @@ mod tests {
         assert_eq!(argv[3], "-c");
         let v: serde_json::Value = serde_json::from_str(&argv[2]).unwrap();
         let stop = v["hooks"]["Stop"][0]["hooks"][0]["command"].as_str().unwrap();
-        assert_eq!(stop, "'/opt/My App/sessiond' notify --event done");
+        assert_eq!(stop, "'/opt/My App/sessiond' notify --event done >/dev/null 2>&1 || true");
         assert_eq!(v["hooks"]["PostToolUse"][0]["matcher"], "*");
         assert_eq!(v["hooks"]["Notification"][0]["matcher"], "permission_prompt|elicitation_dialog");
     }

@@ -97,6 +97,18 @@ pub enum Status {
     Error,
 }
 
+/// Where a session is in your workflow; you move it, agents never do.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Stage {
+    #[default]
+    Inbox,
+    Planning,
+    Implementing,
+    Validating,
+    Complete,
+}
+
 /// What an agent hook reports through `notify`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -142,6 +154,9 @@ pub struct SessionInfo {
     /// Set by an explicit rename: the name then wins over the title.
     #[serde(default)]
     pub renamed: bool,
+    /// Kanban column. Absent in rows saved by older builds: inbox.
+    #[serde(default)]
+    pub stage: Stage,
 }
 
 /// Everything `sessiond` needs to start a session. Built by the core from the
@@ -192,6 +207,10 @@ pub enum Request {
     Rename {
         session: String,
         name: String,
+    },
+    SetStage {
+        session: String,
+        stage: Stage,
     },
     /// Kills if alive, then forgets the session and its history.
     Remove {
@@ -271,6 +290,17 @@ mod tests {
         let v = serde_json::to_value(&msg).unwrap();
         assert_eq!(v["op"], "resize");
         assert_eq!(serde_json::from_value::<ClientMsg>(v).unwrap(), msg);
+    }
+
+    #[test]
+    fn stage_defaults_to_inbox_for_old_rows() {
+        let old = r#"{"id":"a","name":"n","agent":"claude","cwd":"/","workspace":"/","branch":null,"worktree":null,
+            "status":"done","alive":false,"exitCode":0,"createdMs":1,"updatedMs":2}"#;
+        let info: SessionInfo = serde_json::from_str(old).unwrap();
+        assert_eq!(info.stage, Stage::Inbox);
+        let req: Request =
+            serde_json::from_str(r#"{"op":"set_stage","session":"a","stage":"validating"}"#).unwrap();
+        assert_eq!(req, Request::SetStage { session: "a".into(), stage: Stage::Validating });
     }
 
     #[test]

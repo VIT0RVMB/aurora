@@ -17,7 +17,7 @@ use serde::de::DeserializeOwned;
 
 use super::proto::{
     AgentEvent, ClientMsg, CreateSpec, Frame, Hello, PROTOCOL_VERSION, Request, ServerMsg, SessionInfo,
-    read_frame,
+    Stage, read_frame,
 };
 use super::transport::{self, Stream};
 use crate::{Error, Result};
@@ -197,6 +197,10 @@ impl Client {
 
     pub fn rename(&self, session: &str, name: &str) -> Result<SessionInfo> {
         self.call(Request::Rename { session: session.to_string(), name: name.to_string() })
+    }
+
+    pub fn set_stage(&self, session: &str, stage: Stage) -> Result<SessionInfo> {
+        self.call(Request::SetStage { session: session.to_string(), stage })
     }
 
     pub fn remove(&self, session: &str) -> Result<()> {

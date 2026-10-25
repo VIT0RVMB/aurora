@@ -15,8 +15,9 @@ import { Welcome } from "./components/Welcome";
 import { measureCell } from "./lib/cells";
 import { findCommand, isOutsidePath, parseCommand, type CommandSpec } from "./lib/commands";
 import { core } from "./lib/ipc";
+import type { Dir } from "./lib/panes";
 import { isEditable, isMac, isMod } from "./lib/platform";
-import { parseSessionCommand, resolveSession, SUBCOMMANDS } from "./lib/sessions";
+import { displayName, parseSessionCommand, resolveSession, STAGES, SUBCOMMANDS } from "./lib/sessions";
 import { installVimKeys, LEADER_KEYS, type LeaderKey } from "./lib/vim";
 import { KNOWN_AGENTS } from "./lib/agents";
 import * as editor from "./state/editor";
@@ -25,7 +26,7 @@ import { fontKey } from "./state/prefs";
 import { refreshThemes, setTheme, themes, themesDir } from "./state/theme";
 import * as ui from "./state/ui";
 import * as ws from "./state/workspace";
-import { LOCALES, locale, parseLocale, setLocale, t } from "./lib/i18n";
+import { LOCALES, locale, parseLocale, setLocale, t, type Key } from "./lib/i18n";
 
 interface Command extends CommandSpec {
   run: (args: string[]) => Promise<string | void> | string | void;
@@ -98,6 +99,10 @@ const commands: Command[] = [
         return sessions.here().map((x) => x.name);
       }
       if (before.length >= 2 && (sub === "new" || sub === "n")) return ["--worktree", "--name", "--"];
+      if (sub === "stage" || sub === "st") {
+        if (before.length === 1) return STAGES.map((st) => ({ value: st, description: t(`stage.${st}` as Key) }));
+        if (before.length === 2) return sessions.here().map((x) => x.name);
+      }
       return [];
     },
     run: async (args) => {
@@ -108,6 +113,11 @@ const commands: Command[] = [
       const target = resolveSession(sessions.here(), cmd.target, sessions.activeSession());
       if (typeof target === "string") return target;
       switch (cmd.sub) {
+        case "stage": {
+          const err = await sessions.setStage(target, cmd.stage);
+          if (err) return err;
+          return void ui.notify(t("sess.staged", { name: displayName(target), stage: t(`stage.${cmd.stage}` as Key) }));
+        }
         case "kill":
           return sessions.kill(target);
         case "rename":
@@ -118,6 +128,21 @@ const commands: Command[] = [
           return sessions.focusSession(target.id);
       }
     },
+  },
+  {
+    name: "home",
+    get description() {
+      return t("cmd.home.desc");
+    },
+    run: () => void ui.setCenterView("home"),
+  },
+  {
+    name: "kanban",
+    aliases: ["board", "kb"],
+    get description() {
+      return t("cmd.kanban.desc");
+    },
+    run: () => void ui.setCenterView("kanban"),
   },
   {
     name: "prefs",
@@ -149,10 +174,20 @@ const commands: Command[] = [
   {
     name: "split",
     aliases: ["vs", "vsplit"],
+    usage: "[right|down]",
+    argChoices: ["right", "down"],
     get description() {
       return t("cmd.split.desc");
     },
-    run: () => sessions.split(),
+    run: ([d]) => split(d === "down" ? "column" : "row"),
+  },
+  {
+    name: "hsplit",
+    aliases: ["sp"],
+    get description() {
+      return t("cmd.hsplit.desc");
+    },
+    run: () => split("column"),
   },
   {
     name: "unsplit",
@@ -160,7 +195,7 @@ const commands: Command[] = [
     get description() {
       return t("cmd.unsplit.desc");
     },
-    run: () => sessions.unsplit(),
+    run: () => (ui.workArea() === "terminal" ? sessions.unsplit() : editor.unsplit()),
   },
   {
     name: "write",
@@ -228,8 +263,15 @@ const commands: Command[] = [
 ];
 
 /** `:q` closes what you are looking at: the terminal tab or the file. */
+/** Splits whichever of editor and terminals was used last. */
+function split(dir: Dir): string | void {
+  if (ui.workArea() === "terminal" && sessions.hasTabs()) return sessions.split(dir);
+  editor.split(dir);
+}
+
 function closeCurrent(force: boolean): string | void {
   if (ui.area() === "terminal") return sessions.hideTab();
+  if (editor.closeEmptyGroup()) return;
   const tab = editor.activeTab();
   if (!tab) return sessions.activeSession() ? sessions.hideTab() : t("err.nothingToClose");
   if (tab.dirty && !force) return t("err.tabDirty", { name: tab.name });
@@ -260,6 +302,12 @@ function leader(k: LeaderKey) {
       return void editor.saveFile();
     case "q":
       return void Promise.resolve(closeCurrent(false)).then((e) => e && ui.notify(e, "warn"));
+    case "h":
+      return ui.setCenterView("home");
+    case "k":
+      return ui.setCenterView("kanban");
+    case "o":
+      return ui.workArea() === "terminal" ? sessions.focusNextPane() : editor.focusNextGroup();
   }
 }
 
@@ -304,9 +352,9 @@ export function App() {
     }
     if (mod && e.shiftKey && k === "a") return handled(), ui.showRight("sessions");
     if (mod && !e.shiftKey && k === "j") return handled(), sessions.toggleArea();
-    if (mod && !e.shiftKey && (e.key === "\\" || e.code === "Backslash")) {
+    if (mod && (e.key === "\\" || e.key === "|" || e.code === "Backslash")) {
       handled();
-      const err = sessions.split();
+      const err = split(e.shiftKey ? "column" : "row");
       if (err) ui.notify(err, "warn");
       return;
     }
@@ -452,7 +500,8 @@ export function App() {
 /** Editor on top, terminals below; either takes the whole column alone. */
 function Center(p: { cellH: () => number }) {
   const terms = () => ui.terminalVisible() && sessions.hasTabs();
-  const edit = () => editor.tabs.length > 0 || !terms();
+  // A view asked for (`:home`, `:kanban`) claims the editor area even with no file.
+  const edit = () => editor.tabs.length > 0 || ui.centerView() !== "auto" || !terms();
   const both = () => terms() && edit();
   const rows = () =>
     [

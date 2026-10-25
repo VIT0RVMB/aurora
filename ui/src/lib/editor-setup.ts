@@ -54,7 +54,7 @@ const highlight = HighlightStyle.define([
 ]);
 
 const terminalTheme = EditorView.theme({
-  "&": { height: "100%", color: "var(--fg)", backgroundColor: "var(--bg)", fontSize: "var(--font-size)" },
+  "&": { height: "100%", color: "var(--fg)", backgroundColor: "var(--surface)", fontSize: "var(--font-size)" },
   "&.cm-focused": { outline: "none" },
   ".cm-scroller": { fontFamily: "var(--font-mono)", lineHeight: "var(--cell-h)" },
   ".cm-content": { caretColor: "var(--cursor)", padding: "0" },
@@ -70,7 +70,7 @@ const terminalTheme = EditorView.theme({
   "&.cm-focused > .cm-scroller > .cm-selectionLayer .cm-selectionBackground, .cm-selectionBackground":
     { backgroundColor: "var(--selection) !important" },
   ".cm-activeLine": { backgroundColor: "var(--bg-panel)" },
-  ".cm-gutters": { backgroundColor: "var(--bg)", color: "var(--fg-faint)", border: "none" },
+  ".cm-gutters": { backgroundColor: "var(--surface)", color: "var(--fg-faint)", border: "none" },
   ".cm-lineNumbers .cm-gutterElement": { padding: "0 var(--cell-w) 0 calc(var(--cell-w) * 2)" },
   ".cm-activeLineGutter": { backgroundColor: "var(--bg-panel)", color: "var(--fg-dim)" },
   ".cm-foldGutter .cm-gutterElement": { padding: "0", width: "calc(var(--cell-w) * 2)" },

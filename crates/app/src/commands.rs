@@ -152,7 +152,10 @@ pub async fn list_themes() -> CmdResult<ThemeList> {
 
 #[tauri::command]
 pub async fn load_theme(id: String) -> CmdResult<aurora_core::theme::ThemeTokens> {
-    blocking(move || aurora_core::theme::load(&aurora_core::theme::dir(&aurora_core::session::data_dir()), &id)).await
+    blocking(move || {
+        aurora_core::theme::load(&aurora_core::theme::dir(&aurora_core::session::data_dir()), &id)
+    })
+    .await
 }
 
 pub async fn blocking<T: Send + 'static>(

@@ -1,6 +1,6 @@
 // Pure helpers for agent sessions: `:session` argument parsing, target lookup
 // and how a status is shown. No IPC here, so it is unit-tested.
-import type { SessionInfo } from "./ipc";
+import type { SessionInfo, Stage } from "./ipc";
 import { t } from "./i18n";
 
 export type SessionCommand =
@@ -9,9 +9,18 @@ export type SessionCommand =
   | { sub: "rename"; target?: string; name: string }
   | { sub: "rm"; target?: string }
   | { sub: "focus"; target: string }
+  | { sub: "stage"; stage: Stage; target?: string }
   | { sub: "list" };
 
-export const SUBCOMMANDS = ["new", "kill", "rename", "rm", "focus", "list"] as const;
+export const SUBCOMMANDS = ["new", "kill", "rename", "rm", "focus", "stage", "list"] as const;
+export const STAGES: Stage[] = ["inbox", "planning", "implementing", "validating", "complete"];
+
+/** A stage by name or unique prefix (`impl`, `val`). */
+export function parseStage(s: string): Stage | null {
+  const v = s.toLowerCase();
+  const hits = STAGES.filter((st) => st.startsWith(v));
+  return v && hits.length === 1 ? hits[0] : null;
+}
 const ALIASES: Record<string, (typeof SUBCOMMANDS)[number]> = {
   n: "new",
   k: "kill",
@@ -21,6 +30,7 @@ const ALIASES: Record<string, (typeof SUBCOMMANDS)[number]> = {
   f: "focus",
   go: "focus",
   ls: "list",
+  st: "stage",
 };
 
 /** `:session new claude --worktree fix-login -- --model opus` and friends. */
@@ -64,6 +74,11 @@ export function parseSessionCommand(args: string[]): SessionCommand | { error: s
     case "focus":
       if (!rest[0]) return { error: t("sess.usageFocus") };
       return { sub: "focus", target: rest[0] };
+    case "stage": {
+      const stage = rest[0] ? parseStage(rest[0]) : null;
+      if (!stage) return { error: t("sess.usageStage") };
+      return { sub: "stage", stage, target: rest[1] };
+    }
     case "list":
       return { sub: "list" };
     default:

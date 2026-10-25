@@ -1,13 +1,10 @@
 import { createSignal, For, Show } from "solid-js";
 import { modLabel } from "../lib/platform";
 import { displayName, statusView } from "../lib/sessions";
+import { ago, shortPath } from "../lib/text";
 import * as sessions from "../state/sessions";
+import { now } from "../state/ui";
 import { t } from "../lib/i18n";
-
-function shortPath(p: string) {
-  const parts = p.replace(/\\/g, "/").split("/").filter(Boolean);
-  return parts.slice(-2).join("/");
-}
 
 /** Sessions of the open workspace: status first, then who and where. */
 export function SessionsPanel() {
@@ -48,30 +45,25 @@ export function SessionsPanel() {
                   setCursor(i());
                   open(i());
                 }}
-                title={s.cwd}
+                title={[displayName(s), s.name, view().label, s.agent, s.branch && `⎇ ${s.branch}`, s.worktree ?? s.cwd]
+                  .filter(Boolean)
+                  .join(" · ")}
               >
-                <div class="session-line">
-                  <span class={view().tone}>{view().glyph}</span>
-                  <span class="session-name">{displayName(s)}</span>
-                  <span class={`session-status ${view().tone}`}>{view().label}</span>
-                </div>
-                <div class="session-line dim">
-                  <span class="faint"> </span>
-                  <span class="session-meta">
-                    <Show when={displayName(s) !== s.name}>
-                      {s.name}
-                      <span class="faint"> · </span>
-                    </Show>
-                    {s.agent}
-                    <Show when={s.branch}>
-                      <span class="faint"> ⎇ </span>
-                      {s.branch}
-                    </Show>
-                    <Show when={s.worktree}>
-                      <span class="faint"> · {shortPath(s.worktree!)}</span>
-                    </Show>
-                  </span>
-                </div>
+                <span class={view().tone}>{view().glyph}</span>
+                <span class="session-name">{displayName(s)}</span>
+                <Show
+                  when={s.alive && s.status === "waiting"}
+                  fallback={
+                    <span class="session-meta faint">
+                      {s.agent}
+                      <Show when={s.branch}> ⎇ {s.branch}</Show>
+                      <Show when={s.worktree}> · {shortPath(s.worktree!)}</Show>
+                    </span>
+                  }
+                >
+                  <span class="session-meta warn">{view().label}</span>
+                </Show>
+                <span class="session-age">{ago(s.updatedMs, now())}</span>
               </button>
             );
           }}

@@ -8,11 +8,13 @@ import { t } from "../lib/i18n";
 export function RightPanel() {
   return (
     <section class="right">
-      <div class="panel-title right-tabs">
+      <div class="box">
+      <div class="box-title right-tabs">
         <button classList={{ on: rightTab() === "sessions" }} onClick={() => showRight("sessions")}>
           {t("panel.sessions")}
+          <span class="count">{sessions.here().length}</span>
           <Show when={sessions.waiting() > 0}>
-            <span class="warn"> ◆{sessions.waiting()}</span>
+            <span class="warn">◆{sessions.waiting()}</span>
           </Show>
         </button>
         <button classList={{ on: rightTab() === "search" }} onClick={() => showRight("search")}>
@@ -27,6 +29,7 @@ export function RightPanel() {
           <SearchPanel />
         </Match>
       </Switch>
+      </div>
     </section>
   );
 }

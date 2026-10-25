@@ -3,12 +3,14 @@ import { modLabel } from "../lib/platform";
 import { displayName, statusView } from "../lib/sessions";
 import * as sessions from "../state/sessions";
 import { t } from "../lib/i18n";
+import { TabStrip } from "./TabStrip";
+import { shortPath } from "../lib/text";
 
-/** The terminal area: side-by-side panes, each with its own session tabs. */
+/** The terminal area: panes side by side or stacked, each with its own session tabs. */
 export function Terminals() {
   const ids = createMemo(() => sessions.layout().panes.map((p) => p.id));
   return (
-    <section class="terms">
+    <section class="terms" classList={{ stacked: sessions.layout().dir === "column" }}>
       <For each={ids()}>{(id) => <TerminalPane id={id} />}</For>
     </section>
   );
@@ -48,7 +50,7 @@ function TerminalPane(p: { id: number }) {
   return (
     <div
       class="term-pane"
-      classList={{ focused: focused() && multi() }}
+      classList={{ focused: focused() && multi(), dimmed: multi() && !focused() }}
       onFocusIn={() => {
         sessions.focusPane(p.id);
         sessions.setFocusedTerm(active());
@@ -56,7 +58,7 @@ function TerminalPane(p: { id: number }) {
       onFocusOut={() => sessions.setFocusedTerm(null)}
       onMouseDown={() => sessions.focusPane(p.id)}
     >
-      <div class="tabbar" role="tablist">
+      <TabStrip>
         <For each={pane()?.tabs ?? []}>
           {(id, i) => {
             const info = () => sessions.byId(id);
@@ -95,7 +97,7 @@ function TerminalPane(p: { id: number }) {
             );
           }}
         </For>
-      </div>
+      </TabStrip>
       <Show when={sessions.byId(active())?.alive === false}>
         <div class="banner">
           <span class="dim">
@@ -106,7 +108,24 @@ function TerminalPane(p: { id: number }) {
           <span class="faint">{t("term.rmHint")}</span>
         </div>
       </Show>
-      <div ref={body} class="term-body" classList={{ hidden: !active() }} />
+      <div class="box" classList={{ hidden: !active() }}>
+        <div class="box-title">
+          <Show when={sessions.byId(active())}>
+            {(s) => (
+              <>
+                {s().agent}
+                <span class="faint"> · </span>
+                {shortPath(s().cwd)}
+                <Show when={s().branch}>
+                  <span class="faint"> ⎇ </span>
+                  {s().branch}
+                </Show>
+              </>
+            )}
+          </Show>
+        </div>
+        <div ref={body} class="term-body" />
+      </div>
       <Show when={!active()}>
         <div class="editor-empty">
           <div>

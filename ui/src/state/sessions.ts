@@ -1,12 +1,12 @@
 import { Channel } from "@tauri-apps/api/core";
 import { createEffect, createMemo, createRoot, createSignal } from "solid-js";
 import { createStore, reconcile } from "solid-js/store";
-import { core, errorKind, errorMessage, type NewSession, type SessionInfo } from "../lib/ipc";
+import { core, errorKind, errorMessage, type NewSession, type SessionInfo, type Stage } from "../lib/ipc";
 import * as panes from "../lib/panes";
 import { displayName, sameFolder, sortSessions } from "../lib/sessions";
 import { load, save } from "../lib/storage";
 import type { TermHandle } from "../lib/terminal";
-import { fontKey } from "./prefs";
+import { bgOpacity, fontKey } from "./prefs";
 import { theme } from "./theme";
 import { confirm, notify, setTerminalVisible, toggleTerminal } from "./ui";
 import { workspace } from "./workspace";
@@ -117,6 +117,7 @@ function disposeTerminal(id: string) {
 createRoot(() => {
   createEffect(() => {
     theme();
+    bgOpacity();
     requestAnimationFrame(() => terms.forEach((t) => t.applyTheme()));
   });
   createEffect(() => {
@@ -213,7 +214,13 @@ export function activateTab(paneId: number, id: string) {
 }
 
 export function focusPane(paneId: number) {
-  if (layout().focused !== paneId) setLayout({ ...layout(), focused: paneId });
+  if (layout().focused !== paneId) setLayout(panes.focus(layout(), paneId));
+}
+
+/** Focuses the next (or previous) terminal pane. */
+export function focusNextPane(delta = 1) {
+  setLayout(panes.focusPane(layout(), delta));
+  requestAnimationFrame(() => focusTerminal());
 }
 
 /** Hides a session's tab; the session keeps running in the daemon. */
@@ -227,9 +234,10 @@ export function cycleTab(delta: number) {
   requestAnimationFrame(() => focusTerminal());
 }
 
-export function split(): string | void {
-  const next = panes.split(layout());
-  if (typeof next === "string") return next;
+/** Moves the active session into a new pane beside (`row`) or below (`column`) it. */
+export function split(dir: panes.Dir = "row"): string | void {
+  const next = panes.split(layout(), dir);
+  if (!next) return t("sess.paneNeedsTwo");
   setLayout(next);
   requestAnimationFrame(() => focusTerminal());
 }
@@ -271,6 +279,17 @@ export async function rename(s: SessionInfo, name: string): Promise<string | voi
   try {
     upsert(await core.sessionRename(s.id, name));
   } catch (e) {
+    return errorMessage(e);
+  }
+}
+
+export async function setStage(s: SessionInfo, stage: Stage): Promise<string | void> {
+  if (s.stage === stage) return;
+  upsert({ ...s, stage }); // the board moves now; the daemon confirms
+  try {
+    upsert(await core.sessionSetStage(s.id, stage));
+  } catch (e) {
+    upsert(s);
     return errorMessage(e);
   }
 }

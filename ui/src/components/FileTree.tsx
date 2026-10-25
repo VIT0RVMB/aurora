@@ -104,9 +104,10 @@ export function FileTree(p: { rowH: () => number }) {
 
   return (
     <section class="tree">
-      <div class="panel-title">
-        <span class="accent">◇ {workspace()?.name ?? "files"}</span>
-      </div>
+      <div class="box">
+        <div class="box-title">
+          <span class="accent">◇</span> {workspace()?.name ?? "files"}
+        </div>
       <div
         ref={scroller}
         class="tree-scroll"
@@ -133,6 +134,7 @@ export function FileTree(p: { rowH: () => number }) {
             )}
           </For>
         </div>
+      </div>
       </div>
     </section>
   );

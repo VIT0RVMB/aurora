@@ -106,6 +106,7 @@ function createSession(req: Record<string, any>) {
       updatedMs: now(),
       title: null,
       renamed: false,
+      stage: "inbox",
     },
     history: "",
     line: "",
@@ -139,8 +140,66 @@ function input(s: MockSession, data: string) {
   }
 }
 
-// Two schemes as the core maps them (`core::theme::load`).
+// Built-in Ember plus two schemes as the core maps them (`core::theme::load`).
 const themes: Record<string, any>[] = [
+{
+  "id": "ember",
+  "name": "Ember",
+  "variant": "dark",
+  "tokens": {
+    "--accent": "#e08850",
+    "--accent-2": "#c08ab0",
+    "--accent-fg": "#1c1d1b",
+    "--ansi-black": "#252623",
+    "--ansi-blue": "#7f9fc4",
+    "--ansi-bright-black": "#6e695f",
+    "--ansi-bright-blue": "#7f9fc4",
+    "--ansi-bright-cyan": "#85aba1",
+    "--ansi-bright-green": "#91a97f",
+    "--ansi-bright-magenta": "#c08ab0",
+    "--ansi-bright-red": "#d47562",
+    "--ansi-bright-white": "#f8f1e3",
+    "--ansi-bright-yellow": "#d8b06a",
+    "--ansi-cyan": "#85aba1",
+    "--ansi-green": "#91a97f",
+    "--ansi-magenta": "#c08ab0",
+    "--ansi-red": "#d47562",
+    "--ansi-white": "#e2d8c5",
+    "--ansi-yellow": "#d8b06a",
+    "--bg": "#1c1d1b",
+    "--bg-hover": "#2b2c28",
+    "--bg-panel": "#20211e",
+    "--bg-raised": "#252623",
+    "--bg-select": "#353430",
+    "--bg-select-dim": "#2f2e2b",
+    "--cursor": "#e2d8c5",
+    "--danger": "#d47562",
+    "--fg": "#e2d8c5",
+    "--fg-dim": "#9b9488",
+    "--fg-faint": "#6e695f",
+    "--info": "#85aba1",
+    "--line": "#2d2d2a",
+    "--line-strong": "#605c53",
+    "--match": "#e08850",
+    "--match-bg": "rgba(224, 136, 80, 0.18)",
+    "--selection": "rgba(53, 52, 48, 0.8)",
+    "--syn-attr": "#e08850",
+    "--syn-comment": "#6e695f",
+    "--syn-function": "#7f9fc4",
+    "--syn-heading": "#e08850",
+    "--syn-keyword": "#c08ab0",
+    "--syn-link": "#85aba1",
+    "--syn-number": "#e08850",
+    "--syn-operator": "#9b9488",
+    "--syn-property": "#d47562",
+    "--syn-string": "#91a97f",
+    "--syn-tag": "#d47562",
+    "--syn-type": "#d8b06a",
+    "--syn-variable": "#e2d8c5",
+    "--warn": "#d8b06a",
+    "color-scheme": "dark"
+  }
+},
   {
     "id": "catppuccin-mocha",
     "name": "Catppuccin Mocha",
@@ -303,6 +362,12 @@ export function installMock() {
         s.info = { ...s.info, alive: false, status: "done", exitCode: 129, updatedMs: now() };
         void emit("session-update", s.info);
         return null;
+      }
+      case "session_set_stage": {
+        const s = sessions.get(a.id)!;
+        s.info = { ...s.info, stage: a.stage };
+        void emit("session-update", s.info);
+        return s.info;
       }
       case "session_rename": {
         const s = sessions.get(a.id)!;

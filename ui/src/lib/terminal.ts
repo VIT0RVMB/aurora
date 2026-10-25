@@ -31,8 +31,10 @@ function cssVar(name: string): string {
 /** Builds the xterm theme from the design tokens, so terminals follow `:theme`. */
 export function readTheme(): ITheme {
   const v = cssVar;
+  // A see-through window (Preferences) shows the body's tint behind the text.
+  const clear = document.documentElement.classList.contains("translucent");
   return {
-    background: v("--bg"),
+    background: clear ? "rgba(0, 0, 0, 0)" : v("--bg"),
     foreground: v("--fg"),
     cursor: v("--cursor"),
     cursorAccent: v("--bg"),
@@ -83,6 +85,7 @@ export function createTerminal(o: TermOptions): TermHandle {
   const term = new Terminal({
     ...font(),
     theme: readTheme(),
+    allowTransparency: true,
     cursorBlink: true,
     scrollback: 10_000,
     allowProposedApi: false,

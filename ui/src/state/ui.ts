@@ -12,13 +12,33 @@ export function openPalette(mode: PaletteMode, initial = mode === "command" ? ":
 
 export const [prefsOpen, setPrefsOpen] = createSignal(false);
 
+/**
+ * What the editor area shows: the open file ("auto", or home with no file),
+ * or a view asked for with `:home` / `:kanban`. Opening a file goes back to auto.
+ */
+export type CenterView = "auto" | "home" | "kanban";
+export const [centerView, setCenterView] = createSignal<CenterView>("auto");
+
+/** Wall clock for "5m ago" columns; ticks every 30 s. */
+const [now, setNow] = createSignal(Date.now());
+setInterval(() => setNow(Date.now()), 30_000);
+export { now };
+
 /** Where the keyboard is; drives the mode badge and the hint bar. */
-export type Area = "editor" | "terminal" | "tree" | "panel" | "none";
-export const [area, setArea] = createSignal<Area>("none");
+export type Area = "editor" | "terminal" | "tree" | "panel" | "board" | "none";
+export const [area, setAreaSignal] = createSignal<Area>("none");
+/** Editor or terminal, whichever had the keyboard last: what `:split` acts on. */
+export const [workArea, setWorkArea] = createSignal<"editor" | "terminal">("editor");
+
+export function setArea(a: Area) {
+  setAreaSignal(a);
+  if (a === "editor" || a === "terminal") setWorkArea(a);
+}
 
 export function areaOf(el: Element | null): Area {
   if (!el?.closest) return "none";
   if (el.closest(".term-host")) return "terminal";
+  if (el.closest(".kanban")) return "board";
   if (el.closest(".editor-host")) return "editor";
   if (el.closest(".tree")) return "tree";
   if (el.closest(".right")) return "panel";

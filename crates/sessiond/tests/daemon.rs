@@ -8,7 +8,9 @@ use std::{
     time::{Duration, Instant},
 };
 
-use aurora_core::session::{self, Client, ClientEvent, CreateSpec, SessionInfo, Status, agents::Hooks};
+use aurora_core::session::{
+    self, Client, ClientEvent, CreateSpec, SessionInfo, Stage, Status, agents::Hooks,
+};
 use aurora_sessiond::{Config, ServeError};
 use parking_lot::Mutex;
 
@@ -211,6 +213,13 @@ fn five_sessions_survive_reconnect_and_restart() {
         wait_for(&out, &format!("ping{n}"));
     }
 
+    // The kanban stage is plain metadata: it survives the restart below and
+    // does not count as agent activity.
+    let before = c.client.list().unwrap().into_iter().find(|s| s.id == ids[1]).unwrap().updated_ms;
+    let staged = c.client.set_stage(&ids[1], Stage::Validating).unwrap();
+    assert_eq!(staged.stage, Stage::Validating);
+    assert_eq!(staged.updated_ms, before);
+
     // A second daemon for the same folder refuses to start.
     assert!(matches!(start(dir.path()).join().unwrap(), Err(ServeError::AlreadyRunning)));
 
@@ -223,6 +232,8 @@ fn five_sessions_survive_reconnect_and_restart() {
     let list = c.client.list().unwrap();
     assert_eq!(list.len(), 5);
     assert!(list.iter().all(|s| !s.alive && s.status == Status::Done));
+    let stages: Vec<_> = ids.iter().map(|id| list.iter().find(|s| &s.id == id).unwrap().stage).collect();
+    assert_eq!(stages, [Stage::Inbox, Stage::Validating, Stage::Inbox, Stage::Inbox, Stage::Inbox]);
     let out = attach(&c.client, &ids[2]);
     wait_for(&out, "s2-line3");
     c.client.shutdown().unwrap();

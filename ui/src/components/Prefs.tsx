@@ -1,5 +1,11 @@
 import { createMemo, createSignal, For, onCleanup, onMount, Show } from "solid-js";
 import {
+  BG_OPACITY_MIN,
+  BG_OPACITY_STEP,
+  bgBlur,
+  bgOpacity,
+  setBgBlur,
+  setBgOpacity,
   FONT_CHOICES,
   FONT_SIZE_MAX,
   FONT_SIZE_MIN,
@@ -65,7 +71,7 @@ function Choices(p: {
   );
 }
 
-/** Preferences: theme, language, font family and size. Everything applies as you move. */
+/** Preferences: theme, background, language, font family and size. Everything applies as you move. */
 export function Prefs() {
   const close = () => setPrefsOpen(false);
   const onKey = (e: KeyboardEvent) => {
@@ -128,6 +134,33 @@ export function Prefs() {
                 {t("prefs.schemes", { dir: themesDir().replace(/^\/Users\/[^/]+/, "~") })}
               </div>
             </Show>
+            <div class="prefs-head">{t("prefs.background")}</div>
+            <div class="prefs-size">
+              <button
+                disabled={bgOpacity() <= BG_OPACITY_MIN}
+                onClick={() => setBgOpacity(bgOpacity() - BG_OPACITY_STEP)}
+              >
+                [−]
+              </button>
+              <input
+                type="range"
+                class="prefs-range"
+                min={BG_OPACITY_MIN}
+                max={100}
+                step={BG_OPACITY_STEP}
+                value={bgOpacity()}
+                aria-label={t("prefs.opacity")}
+                onInput={(e) => setBgOpacity(Number(e.currentTarget.value))}
+              />
+              <span class="prefs-pct">{bgOpacity()}%</span>
+              <button disabled={bgOpacity() >= 100} onClick={() => setBgOpacity(bgOpacity() + BG_OPACITY_STEP)}>
+                [+]
+              </button>
+            </div>
+            <label class="prefs-check" classList={{ faint: bgOpacity() >= 100 }}>
+              <input type="checkbox" checked={bgBlur()} onChange={(e) => setBgBlur(e.currentTarget.checked)} />
+              <span>{bgBlur() ? "[x]" : "[ ]"}</span> {t("prefs.blur")}
+            </label>
             <div class="prefs-head">{t("prefs.language")}</div>
             <Choices
               short

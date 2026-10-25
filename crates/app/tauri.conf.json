@@ -23,12 +23,14 @@
         "trafficLightPosition": {
           "x": 16,
           "y": 20
-        }
+        },
+        "transparent": true
       }
     ],
     "security": {
       "csp": "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src ipc: http://ipc.localhost"
-    }
+    },
+    "macOSPrivateApi": true
   },
   "bundle": {
     "active": true,

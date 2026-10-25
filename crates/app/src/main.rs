@@ -32,6 +32,7 @@ fn main() {
             sessions::session_resize,
             sessions::session_kill,
             sessions::session_rename,
+            sessions::session_set_stage,
             sessions::session_worktree_dirty,
             sessions::session_remove,
             dev::dev_smoke,

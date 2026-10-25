@@ -8,6 +8,15 @@
   --font-mono: "JetBrains Mono", "Berkeley Mono", "SF Mono", "Cascadia Code", Menlo, Consolas,
     "DejaVu Sans Mono", monospace;
   --font-size: 13px;
+  /* Strong selection: the picked row of a focused list, the active tab's
+     unfocused twin. Derived, so every theme gets one. */
+  --bg-pick: color-mix(in srgb, var(--accent) 50%, var(--bg));
+  /* Large surfaces paint these; with a see-through window (Preferences)
+     they turn transparent and only the body carries the tint. */
+  --bg-alpha: 1;
+  --surface: var(--bg);
+  --surface-panel: var(--bg-panel);
+  --radius: 4px;
   --cell-w: 1ch;
   /* Row height of virtualized lists; TS reads it at runtime. */
   --cell-h: 20px;
@@ -69,6 +78,11 @@
   --ansi-bright-magenta: #dcc4ff;
   --ansi-bright-cyan: #b0ebde;
   --ansi-bright-white: #f1fff4;
+}
+
+html.translucent {
+  --surface: transparent;
+  --surface-panel: color-mix(in srgb, var(--bg-panel) 50%, transparent);
 }
 
 :root[data-theme="light"] {

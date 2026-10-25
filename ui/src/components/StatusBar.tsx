@@ -11,6 +11,7 @@ import { t } from "../lib/i18n";
 /** Vim-style mode badge: what the keys do right now. */
 function mode(): { text: string; tone: string } {
   if (ui.area() === "terminal") return { text: "TERMINAL", tone: "mode-term" };
+  if (ui.area() === "board") return { text: "BOARD", tone: "mode-visual" };
   if (ui.area() === "editor") {
     if (!vimEnabled()) return { text: "EDIT", tone: "mode-insert" };
     const m = vimMode();
@@ -83,9 +84,18 @@ function hints(): Hint[] {
       return [
         { key: `${modLabel}J`, label: t("hint.hide") },
         { key: `${modLabel}\\`, label: t("hint.split") },
+        { key: `${modLabel}⇧\\`, label: t("hint.stack") },
         { key: "Ctrl+Tab", label: t("hint.next") },
         { key: `${modLabel}⇧A`, label: t("hint.sessions") },
         { key: `${modLabel}⇧P`, label: t("hint.commands") },
+      ];
+    case "board":
+      return [
+        { key: "h/l", label: t("hint.column") },
+        { key: "j/k", label: t("hint.card") },
+        { key: "H/L", label: t("hint.move") },
+        { key: "⏎", label: t("hint.open") },
+        { key: "esc", label: t("hint.back") },
       ];
     case "editor":
       return [

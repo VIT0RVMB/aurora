@@ -32,12 +32,9 @@ fn serve(args: &[String]) {
             }
         }
     }
-    let cfg = Config {
-        data_dir: data_dir.unwrap_or_else(session::data_dir),
-        helper_exe: std::env::current_exe().expect("current exe"),
-        idle_exit: Some(Duration::from_secs(10 * 60)),
-        shell_env: true,
-    };
+    let data_dir = data_dir.unwrap_or_else(session::data_dir);
+    let helper_exe = session::stable_helper(&data_dir, &std::env::current_exe().expect("current exe"));
+    let cfg = Config { data_dir, helper_exe, idle_exit: Some(Duration::from_secs(10 * 60)), shell_env: true };
     match aurora_sessiond::serve(cfg) {
         Ok(()) => {}
         // Lost a start race with another daemon: it serves, we leave.

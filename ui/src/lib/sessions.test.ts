@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { SessionInfo } from "./ipc";
 import { close, cycle, emptyLayout, prune, show, split, unsplit, type Layout } from "./panes";
-import { displayName, parseSessionCommand, resolveSession, sortSessions, statusView } from "./sessions";
+import { displayName, parseSessionCommand, parseStage, resolveSession, sortSessions, statusView } from "./sessions";
 
 const s = (over: Partial<SessionInfo>): SessionInfo => ({
   id: "id",
@@ -18,6 +18,7 @@ const s = (over: Partial<SessionInfo>): SessionInfo => ({
   updatedMs: 0,
   title: null,
   renamed: false,
+  stage: "inbox",
   ...over,
 });
 
@@ -89,18 +90,37 @@ describe("panes", () => {
   });
 
   it("splits the active session into a new pane, and refuses with one tab", () => {
-    expect(typeof split(open("a"))).toBe("string");
+    expect(split(open("a"))).toBeNull();
     const l = split(open("a", "b")) as Layout;
     expect(l.panes.map((p) => p.tabs)).toEqual([["a"], ["b"]]);
     expect(l.focused).toBe(2);
+    expect(l.dir).toBe("row");
     // New sessions land in the focused (new) pane.
     expect(show(l, "c").panes[1].tabs).toEqual(["b", "c"]);
+  });
+
+  it("stacks panes and keeps the direction through later changes", () => {
+    const l = split(open("a", "b", "c"), "column") as Layout;
+    expect(l.dir).toBe("column");
+    expect(close(show(l, "d"), "a").dir).toBe("column");
+    expect(cycle(l, 1).dir).toBe("column");
+  });
+
+  it("opens an empty pane when asked and there is one tab", () => {
+    const l = split(open("a"), "row", true) as Layout;
+    expect(l.panes).toEqual([
+      { id: 1, tabs: ["a"], active: "a" },
+      { id: 2, tabs: [], active: null },
+    ]);
+    expect(l.focused).toBe(2);
+    expect(show(l, "b").panes[1].tabs).toEqual(["b"]);
   });
 
   it("closes emptied panes but keeps the last one", () => {
     const l = split(open("a", "b")) as Layout;
     const after = close(l, "b");
     expect(after.panes).toEqual([{ id: 1, tabs: ["a"], active: "a" }]);
+    expect(after.dir).toBe("row");
     expect(after.focused).toBe(1);
     expect(close(after, "a").panes).toEqual([{ id: 1, tabs: [], active: null }]);
   });
@@ -124,5 +144,19 @@ describe("displayName", () => {
   it("lets commands target a session by its topic", () => {
     const list = [s({ id: "a1", name: "claude-1", title: "Corrigir login" })];
     expect(resolveSession(list, "Corrigir login", null)).toBe(list[0]);
+  });
+});
+
+describe("session stage", () => {
+  it("parses stages by name or unique prefix", () => {
+    expect(parseStage("impl")).toBe("implementing");
+    expect(parseStage("VAL")).toBe("validating");
+    expect(parseStage("")).toBeNull();
+    expect(parseStage("x")).toBeNull();
+  });
+  it("parses :session stage", () => {
+    expect(parseSessionCommand(["stage", "plan"])).toEqual({ sub: "stage", stage: "planning", target: undefined });
+    expect(parseSessionCommand(["st", "complete", "codex-1"])).toEqual({ sub: "stage", stage: "complete", target: "codex-1" });
+    expect(parseSessionCommand(["stage", "nope"])).toHaveProperty("error");
   });
 });

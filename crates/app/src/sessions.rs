@@ -6,7 +6,7 @@ use std::{path::PathBuf, sync::Arc};
 
 use aurora_core::{
     Error,
-    session::{self, Client, ClientEvent, NewSession, SessionInfo},
+    session::{self, Client, ClientEvent, NewSession, SessionInfo, Stage},
 };
 use parking_lot::Mutex;
 use tauri::{
@@ -134,6 +134,11 @@ pub async fn session_kill(app: AppHandle, id: String) -> CmdResult<()> {
 #[tauri::command]
 pub async fn session_rename(app: AppHandle, id: String, name: String) -> CmdResult<SessionInfo> {
     with_client(app, move |c| c.rename(&id, &name)).await
+}
+
+#[tauri::command]
+pub async fn session_set_stage(app: AppHandle, id: String, stage: Stage) -> CmdResult<SessionInfo> {
+    with_client(app, move |c| c.set_stage(&id, stage)).await
 }
 
 /// Whether removing the session's worktree would discard uncommitted work.

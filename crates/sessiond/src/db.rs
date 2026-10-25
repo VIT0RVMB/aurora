@@ -88,6 +88,7 @@ mod tests {
             updated_ms: 1,
             title: None,
             renamed: false,
+            stage: Default::default(),
         }
     }
 

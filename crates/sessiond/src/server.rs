@@ -17,7 +17,7 @@ use std::{
 };
 
 use aurora_core::session::{
-    self, AgentEvent, CreateSpec, SessionInfo, Status, agents,
+    self, AgentEvent, CreateSpec, SessionInfo, Stage, Status, agents,
     agents::Hooks,
     proto::{ClientMsg, Frame, Hello, PROTOCOL_VERSION, Request, ServerMsg, read_frame},
     transport::{self, Listener, Stream},
@@ -407,7 +407,7 @@ impl Server {
             Request::Rename { session, name } => {
                 let name = name.trim();
                 if name.is_empty() {
-                    return Err("nome vazio".into());
+                    return Err("empty name".into());
                 }
                 let s = self.get(&session)?;
                 {
@@ -416,6 +416,14 @@ impl Server {
                     info.renamed = true;
                     info.updated_ms = now_ms();
                 }
+                self.publish(&s);
+                json(serde_json::to_value(s.snapshot()).unwrap())
+            }
+            Request::SetStage { session, stage } => {
+                // Not agent activity: `updated_ms` stays, so ages keep meaning
+                // "last time the agent did something".
+                let s = self.get(&session)?;
+                s.info.lock().stage = stage;
                 self.publish(&s);
                 json(serde_json::to_value(s.snapshot()).unwrap())
             }
@@ -556,6 +564,7 @@ impl Server {
             updated_ms: now,
             title: None,
             renamed: false,
+            stage: Stage::Inbox,
         };
         let s = Arc::new(Session {
             info: Mutex::new(info.clone()),

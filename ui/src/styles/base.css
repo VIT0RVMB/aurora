@@ -12,7 +12,7 @@ body,
 }
 
 body {
-  background: var(--bg);
+  background: color-mix(in srgb, var(--bg) calc(var(--bg-alpha) * 100%), transparent);
   color: var(--fg);
   font-family: var(--font-mono);
   font-size: var(--font-size);

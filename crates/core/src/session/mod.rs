@@ -17,7 +17,7 @@ use std::{
 use serde::Deserialize;
 
 pub use client::{Client, ClientEvent, OutputSink};
-pub use proto::{AgentEvent, CreateSpec, SessionInfo, Status};
+pub use proto::{AgentEvent, CreateSpec, SessionInfo, Stage, Status};
 
 use crate::{Error, Result, git};
 
@@ -44,6 +44,39 @@ pub fn data_dir() -> PathBuf {
             .map(PathBuf::from)
             .unwrap_or_else(|| home().join(".local/share"))
             .join("aurora")
+    }
+}
+
+/// A copy of the daemon's executable at a fixed place in the data folder,
+/// for agent hooks to call. Sessions outlive the binary that started them:
+/// a rebuilt, moved or deleted app bundle must not leave every hook of a
+/// running agent pointing at a missing file. Refreshed when `exe` differs;
+/// on any failure `exe` itself is returned.
+pub fn stable_helper(data_dir: &Path, exe: &Path) -> PathBuf {
+    let name = if cfg!(windows) { "aurora-sessiond.exe" } else { "aurora-sessiond" };
+    let dest = data_dir.join("bin").join(name);
+    if dest == exe {
+        return dest;
+    }
+    let same = match (std::fs::read(exe), std::fs::read(&dest)) {
+        (Ok(a), Ok(b)) => a == b,
+        (Err(_), _) => return exe.to_path_buf(),
+        _ => false,
+    };
+    if same {
+        return dest;
+    }
+    // Copy beside, then rename over: a hook running the old copy keeps it.
+    let tmp = dest.with_extension("tmp");
+    let copied = std::fs::create_dir_all(dest.parent().unwrap())
+        .and_then(|_| std::fs::copy(exe, &tmp))
+        .and_then(|_| std::fs::rename(&tmp, &dest));
+    match copied {
+        Ok(()) => dest,
+        Err(_) => {
+            let _ = std::fs::remove_file(&tmp);
+            exe.to_path_buf()
+        }
     }
 }
 
@@ -239,6 +272,24 @@ pub fn remove_worktree(info: &SessionInfo, force: bool) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn stable_helper_copies_and_refreshes() {
+        let d = tempfile::tempdir().unwrap();
+        let exe = d.path().join("build/aurora-sessiond");
+        std::fs::create_dir_all(exe.parent().unwrap()).unwrap();
+        std::fs::write(&exe, b"v1").unwrap();
+        let data = d.path().join("data");
+        let h = stable_helper(&data, &exe);
+        assert!(h.starts_with(&data));
+        assert_eq!(std::fs::read(&h).unwrap(), b"v1");
+        // A rebuild replaces the copy; deleting the build leaves it in place.
+        std::fs::write(&exe, b"v2").unwrap();
+        assert_eq!(std::fs::read(stable_helper(&data, &exe)).unwrap(), b"v2");
+        std::fs::remove_file(&exe).unwrap();
+        assert_eq!(stable_helper(&data, &exe), exe);
+        assert_eq!(std::fs::read(&h).unwrap(), b"v2");
+    }
 
     #[test]
     fn env_dump_skips_noise() {

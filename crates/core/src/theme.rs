@@ -65,7 +65,14 @@ pub struct Scheme {
     pub variant: Variant,
     /// base00..base17. A Base16 scheme gets base10..base17 filled in.
     pub base: [Rgb; 24],
+    /// Which base color is the UI accent: base0D unless the scheme says
+    /// `accent: "base09"` (an Aurora extension other tools ignore).
+    pub accent: usize,
 }
+
+/// Schemes shipped inside the app; a file with the same id in the themes
+/// folder takes their place.
+const BUILTIN: &[(&str, &str)] = &[("ember", include_str!("../themes/ember.yaml"))];
 
 /// Parses a scheme in either tinted-theming layout: the legacy flat one
 /// (`scheme:`, `base00: "282828"`) or the current one (`name:`, `variant:`,
@@ -76,6 +83,7 @@ pub fn parse(text: &str) -> Result<Scheme> {
     let mut author = String::new();
     let mut variant = None;
     let mut base: [Option<Rgb>; 24] = [None; 24];
+    let mut accent = 0xD;
     for line in text.lines() {
         let line = line.split(" #").next().unwrap_or("").trim();
         let Some((key, value)) = line.split_once(':') else { continue };
@@ -90,10 +98,19 @@ pub fn parse(text: &str) -> Result<Scheme> {
                     _ => None,
                 }
             }
+            "accent" => {
+                accent = value
+                    .strip_prefix("base")
+                    .and_then(|n| usize::from_str_radix(n, 16).ok())
+                    .filter(|&i| i < 24)
+                    .ok_or_else(|| bad(&format!("invalid accent: {value}")))?;
+            }
             k if k.len() == 6 && k.starts_with("base") => {
                 let Ok(i) = usize::from_str_radix(&k[4..], 16) else { continue };
                 if i < 24 {
-                    base[i] = Some(Rgb::parse(value).ok_or_else(|| bad(&format!("invalid color in {k}: {value}")))?);
+                    base[i] = Some(
+                        Rgb::parse(value).ok_or_else(|| bad(&format!("invalid color in {k}: {value}")))?,
+                    );
                 }
             }
             _ => {}
@@ -124,7 +141,7 @@ pub fn parse(text: &str) -> Result<Scheme> {
     for i in 16..24 {
         full[i] = base[i].unwrap_or(fallback[i - 16]);
     }
-    Ok(Scheme { name, author, variant, base: full })
+    Ok(Scheme { name, author, variant, base: full, accent })
 }
 
 fn bad(msg: &str) -> Error {
@@ -148,18 +165,18 @@ pub fn tokens(s: &Scheme) -> BTreeMap<&'static str, String> {
     set("--bg-select", h(0x2));
     set("--bg-select-dim", b(0x1).mix(b(0x2), 0.6).hex());
     set("--line", b(0x1).mix(b(0x2), 0.5).hex());
-    set("--line-strong", b(0x2).mix(b(0x3), 0.5).hex());
+    set("--line-strong", b(0x2).mix(b(0x3), 0.75).hex());
     set("--fg", h(0x5));
     set("--fg-dim", h(0x4));
     set("--fg-faint", h(0x3));
-    set("--accent", h(0xD));
+    set("--accent", h(s.accent));
     set("--accent-fg", h(0x0));
     set("--accent-2", h(0xE));
     set("--warn", h(0xA));
     set("--danger", h(0x8));
     set("--info", h(0xC));
-    set("--match", h(0xD));
-    set("--match-bg", b(0xD).rgba(0.18));
+    set("--match", h(s.accent));
+    set("--match-bg", b(s.accent).rgba(0.18));
     set("--cursor", h(0x5));
     set("--selection", b(0x2).rgba(0.8));
 
@@ -174,7 +191,7 @@ pub fn tokens(s: &Scheme) -> BTreeMap<&'static str, String> {
     set("--syn-operator", h(0x4));
     set("--syn-tag", h(0x8));
     set("--syn-attr", h(0x9));
-    set("--syn-heading", h(0xD));
+    set("--syn-heading", h(s.accent));
     set("--syn-link", h(0xC));
 
     // Black and bright black are lifted off the background so they stay
@@ -232,15 +249,21 @@ fn scheme_files(dir: &Path) -> Vec<(String, std::path::PathBuf)> {
     out
 }
 
-/// Schemes in `dir`, sorted by id. Files that don't parse are skipped; a
-/// missing folder is an empty list.
+/// Built-in schemes, then the ones in `dir` sorted by id. Files that don't
+/// parse are skipped; a missing folder just leaves the built-ins.
 pub fn list(dir: &Path) -> Vec<ThemeInfo> {
-    scheme_files(dir)
+    let files = scheme_files(dir);
+    let builtin: Vec<_> = BUILTIN
+        .iter()
+        .filter(|(id, _)| !files.iter().any(|(stem, _)| stem == id))
+        .filter_map(|(id, text)| Some((id.to_string(), parse(text).ok()?)))
+        .collect();
+    let found =
+        files.into_iter().filter_map(|(id, p)| Some((id, parse(&std::fs::read_to_string(p).ok()?).ok()?)));
+    builtin
         .into_iter()
-        .filter_map(|(id, p)| {
-            let s = parse(&std::fs::read_to_string(p).ok()?).ok()?;
-            Some(ThemeInfo { id, name: s.name, variant: s.variant })
-        })
+        .chain(found)
+        .map(|(id, s)| ThemeInfo { id, name: s.name, variant: s.variant })
         .collect()
 }
 
@@ -249,11 +272,16 @@ pub fn load(dir: &Path, id: &str) -> Result<ThemeTokens> {
     if id.is_empty() || id.contains(['/', '\\']) || id.starts_with('.') {
         return Err(Error::BadName(id.to_string()));
     }
-    let (_, path) = scheme_files(dir)
-        .into_iter()
-        .find(|(stem, _)| stem == id)
-        .ok_or_else(|| bad(&format!("theme not found: {id}")))?;
-    let s = parse(&std::fs::read_to_string(path)?)?;
+    let s = match scheme_files(dir).into_iter().find(|(stem, _)| stem == id) {
+        Some((_, path)) => parse(&std::fs::read_to_string(path)?)?,
+        None => {
+            let (_, text) = BUILTIN
+                .iter()
+                .find(|(b, _)| *b == id)
+                .ok_or_else(|| bad(&format!("theme not found: {id}")))?;
+            parse(text)?
+        }
+    };
     Ok(ThemeTokens { id: id.to_string(), name: s.name.clone(), variant: s.variant, tokens: tokens(&s) })
 }
 
@@ -372,12 +400,30 @@ palette:
         std::fs::write(d.path().join("broken.yaml"), "scheme: x").unwrap();
         std::fs::write(d.path().join("notes.txt"), LEGACY).unwrap();
         let l = list(d.path());
-        assert_eq!(l.len(), 1);
-        assert_eq!(l[0].id, "gruvbox-dark-medium");
+        let ids: Vec<_> = l.iter().map(|t| t.id.as_str()).collect();
+        assert_eq!(ids, ["ember", "gruvbox-dark-medium"]);
         let t = load(d.path(), "gruvbox-dark-medium").unwrap();
         assert_eq!(t.tokens["--accent"], "#83a598");
         assert!(load(d.path(), "../x").is_err());
         assert!(load(d.path(), "missing").is_err());
-        assert!(list(&d.path().join("nope")).is_empty());
+        assert_eq!(list(&d.path().join("nope")).len(), BUILTIN.len());
+    }
+
+    #[test]
+    fn builtin_ember_uses_its_accent_and_yields_to_a_file() {
+        let d = tempfile::tempdir().unwrap();
+        let t = load(d.path(), "ember").unwrap();
+        assert_eq!(t.name, "Ember");
+        assert_eq!(t.tokens["--accent"], "#e08850");
+        assert_eq!(t.tokens["--ansi-blue"], "#7f9fc4");
+        std::fs::write(d.path().join("ember.yaml"), LEGACY).unwrap();
+        assert_eq!(load(d.path(), "ember").unwrap().tokens["--accent"], "#83a598");
+        assert_eq!(list(d.path()).len(), 1);
+    }
+
+    #[test]
+    fn rejects_a_bad_accent() {
+        assert!(parse(&format!("{LEGACY}accent: \"base99\"\n")).is_err());
+        assert_eq!(parse(&format!("{LEGACY}accent: \"base09\"\n")).unwrap().accent, 9);
     }
 }

@@ -1,3 +1,4 @@
+import { getCurrentWindow, Effect } from "@tauri-apps/api/window";
 import { createSignal } from "solid-js";
 import { t } from "../lib/i18n";
 import { load, save } from "../lib/storage";
@@ -83,3 +84,47 @@ export function setFontSize(size: number) {
 
 /** Bumped on every font change; terminals and cell measurements follow it. */
 export const fontKey = () => `${fontFamily() ?? ""}|${fontSize()}`;
+
+// ── window background ──────────────────────────────────────────────────────
+
+export const BG_OPACITY_MIN = 30;
+export const BG_OPACITY_STEP = 5;
+
+/** Percent; below 100 the window is see-through and the desktop shows behind. */
+const [bgOpacity, setBgOpacitySignal] = createSignal<number>(load("bgOpacity", 100));
+/** Blurs what is behind a see-through window, like Terminal's "blur". */
+const [bgBlur, setBgBlurSignal] = createSignal<boolean>(load("bgBlur", true));
+
+export { bgOpacity, bgBlur };
+
+let blurred = false;
+
+function applyBackground() {
+  const root = document.documentElement;
+  const clear = bgOpacity() < 100;
+  root.classList.toggle("translucent", clear);
+  root.style.setProperty("--bg-alpha", String(bgOpacity() / 100));
+  const blur = clear && bgBlur();
+  if (blur === blurred) return;
+  blurred = blur;
+  try {
+    const win = getCurrentWindow();
+    void (blur ? win.setEffects({ effects: [Effect.UnderWindowBackground] }) : win.clearEffects()).catch(() => {});
+  } catch {
+    // Outside Tauri (the browser mock): CSS alone.
+  }
+}
+applyBackground();
+
+export function setBgOpacity(percent: number) {
+  const p = Math.min(100, Math.max(BG_OPACITY_MIN, Math.round(percent)));
+  setBgOpacitySignal(p);
+  save("bgOpacity", p);
+  applyBackground();
+}
+
+export function setBgBlur(on: boolean) {
+  setBgBlurSignal(on);
+  save("bgBlur", on);
+  applyBackground();
+}

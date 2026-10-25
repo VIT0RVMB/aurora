@@ -64,6 +64,8 @@ export interface WorkspaceInfo {
 }
 
 export type SessionStatus = "running" | "waiting" | "done" | "error";
+/** Kanban column; you move sessions between them, agents never do. */
+export type Stage = "inbox" | "planning" | "implementing" | "validating" | "complete";
 
 export interface SessionInfo {
   id: string;
@@ -82,6 +84,7 @@ export interface SessionInfo {
   title: string | null;
   /** Explicitly renamed: the name wins over the title. */
   renamed: boolean;
+  stage: Stage;
 }
 
 export interface NewSession {
@@ -157,6 +160,7 @@ export const core = {
   sessionResize: (id: string, cols: number, rows: number) => invoke<void>("session_resize", { id, cols, rows }),
   sessionKill: (id: string) => invoke<void>("session_kill", { id }),
   sessionRename: (id: string, name: string) => invoke<SessionInfo>("session_rename", { id, name }),
+  sessionSetStage: (id: string, stage: Stage) => invoke<SessionInfo>("session_set_stage", { id, stage }),
   sessionWorktreeDirty: (id: string) => invoke<boolean>("session_worktree_dirty", { id }),
   sessionRemove: (id: string, removeWorktree: boolean, force: boolean) =>
     invoke<void>("session_remove", { id, removeWorktree, force }),
