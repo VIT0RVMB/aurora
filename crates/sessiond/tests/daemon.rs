@@ -399,3 +399,81 @@ fn real_claude_hooks() {
     c.client.shutdown().unwrap();
     daemon.join().unwrap().unwrap();
 }
+
+/// Runs the real Antigravity CLI (`agy`) through the daemon: its hooks come
+/// from the plugin the daemon writes to `~/.gemini/config/plugins/aurora`
+/// (pointing at this build until the app's daemon rewrites it). Spends tokens:
+/// `cargo test -p aurora-sessiond --test daemon real_agy -- --ignored --nocapture`
+#[test]
+#[ignore]
+fn real_agy_hooks() {
+    let dir = tempfile::tempdir().unwrap();
+    let repo = dir.path().join("repo");
+    std::fs::create_dir(&repo).unwrap();
+    let cfg = Config {
+        data_dir: dir.path().join("data"),
+        helper_exe: PathBuf::from(HELPER),
+        idle_exit: None,
+        shell_env: true,
+    };
+    let data = cfg.data_dir.clone();
+    let daemon = std::thread::spawn(move || aurora_sessiond::serve(cfg));
+    let c = connect(&data);
+
+    // `-i` runs the prompt and stays open, so "done" can only come from the
+    // Stop hook, not from the process exiting.
+    let prompt = "Create a file named a.txt containing the word hi. Nothing else.";
+    let launch = session::agents::resolve(
+        "agy",
+        &["--mode".into(), "accept-edits".into(), "-i".into(), prompt.into()],
+    );
+    let spec = CreateSpec {
+        name: "real".into(),
+        agent: "agy".into(),
+        program: launch.program,
+        args: launch.args,
+        cwd: repo.to_string_lossy().into_owned(),
+        workspace: repo.to_string_lossy().into_owned(),
+        branch: None,
+        worktree: None,
+        env: vec![],
+        hooks: launch.hooks,
+        cols: 120,
+        rows: 40,
+    };
+    let info = c.client.create(spec).unwrap();
+    let out = attach(&c.client, &info.id);
+    let t0 = Instant::now();
+    let mut seen = vec![];
+    let mut trusted = false;
+    let deadline = Instant::now() + Duration::from_secs(120);
+    while Instant::now() < deadline {
+        // New folder: agy asks whether to trust it first ("Yes" preselected).
+        if !trusted && String::from_utf8_lossy(&out.lock()).contains("trust this folder") {
+            std::thread::sleep(Duration::from_millis(300));
+            c.client.input(&info.id, b"\r").unwrap();
+            trusted = true;
+        }
+        if let Ok(i) = c.events.recv_timeout(Duration::from_secs(1))
+            && i.id == info.id
+        {
+            println!("{:>6} ms  {:?}  title={:?}", t0.elapsed().as_millis(), i.status, i.title);
+            seen.push(i.status);
+            if i.status == Status::Done && repo.join("a.txt").exists() {
+                break;
+            }
+        }
+    }
+    let screen = String::from_utf8_lossy(&out.lock()).into_owned();
+    println!(
+        "--- tail ---\n{}",
+        screen.chars().rev().take(600).collect::<String>().chars().rev().collect::<String>()
+    );
+    assert!(seen.contains(&Status::Done), "no Stop hook seen; statuses: {seen:?}");
+    let touched = c.client.touched(&info.id).unwrap();
+    println!("touched: {touched:?}");
+    assert!(touched.iter().any(|f| f.ends_with("a.txt")), "write not reported: {touched:?}");
+    c.client.remove(&info.id).unwrap();
+    c.client.shutdown().unwrap();
+    daemon.join().unwrap().unwrap();
+}

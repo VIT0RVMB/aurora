@@ -1,6 +1,7 @@
 //! `aurora-sessiond notify`: what agent hooks call to report status.
 //!
-//! Always exits 0 and prints nothing: a hook failing must never disturb the
+//! Always exits 0 and prints nothing (`{}` with `--ack`, for Antigravity,
+//! whose hooks must answer with JSON): a hook failing must never disturb the
 //! agent. Outside an Aurora session (no `AURORA_SESSION_ID`) it is a no-op.
 
 use std::{
@@ -21,11 +22,13 @@ pub struct Args {
     pub event: Option<AgentEvent>,
     /// `--file PATH`, repeatable: files the agent wrote.
     pub files: Vec<String>,
-    /// `--stdin`: a Claude Code hook payload arrives on stdin.
+    /// `--stdin`: a Claude Code or Antigravity hook payload arrives on stdin.
     pub stdin: bool,
+    /// `--ack`: print `{}`, the empty answer Antigravity expects from a hook.
+    pub ack: bool,
 }
 
-/// `notify [--session ID] [--event EVENT] [--file PATH]... [--stdin] [PAYLOAD...]`.
+/// `notify [--session ID] [--event EVENT] [--file PATH]... [--stdin] [--ack] [PAYLOAD...]`.
 /// Without `--event`, a trailing JSON payload with a `type` field (Codex) names the event.
 pub fn parse(args: &[String]) -> Args {
     let mut out = Args::default();
@@ -37,6 +40,7 @@ pub fn parse(args: &[String]) -> Args {
             "--event" => out.event = it.next().and_then(|e| AgentEvent::parse(e)),
             "--file" => out.files.extend(it.next().cloned()),
             "--stdin" => out.stdin = true,
+            "--ack" => out.ack = true,
             _ => rest.push(a),
         }
     }
@@ -50,12 +54,30 @@ pub fn parse(args: &[String]) -> Args {
     out
 }
 
-/// The file a Claude Code tool call wrote (`Edit`, `Write`, `MultiEdit`,
-/// `NotebookEdit`), from its `PostToolUse` payload.
+/// The file a tool call wrote, from its `PostToolUse` payload: Claude Code
+/// (`Edit`, `Write`, `MultiEdit`, `NotebookEdit`) or Antigravity
+/// (`write_file`, `edit_file`, ...; reads like `view_file` are skipped).
 pub fn payload_file(payload: &serde_json::Value) -> Option<String> {
+    if let Some(call) = payload.get("toolCall") {
+        let name = call.get("name")?.as_str()?;
+        if !(name.starts_with("write") || name.starts_with("edit") || name == "file_change") {
+            return None;
+        }
+        let args = call.get("args")?;
+        let path =
+            ["Path", "TargetFile", "AbsolutePath", "FilePath"].iter().find_map(|k| args.get(k)?.as_str())?;
+        return Some(path.to_string());
+    }
     let input = payload.get("tool_input")?;
     let path = input.get("file_path").or_else(|| input.get("notebook_path"))?.as_str()?;
     Some(path.to_string())
+}
+
+/// The folder relative paths in a payload are against: Claude's `cwd`, else
+/// Antigravity's first workspace (its hooks run in the plugin folder).
+fn payload_cwd(payload: &serde_json::Value) -> Option<PathBuf> {
+    let cwd = payload.get("cwd").or_else(|| payload.get("workspacePaths")?.get(0))?;
+    Some(PathBuf::from(cwd.as_str()?))
 }
 
 /// Relative paths are taken against `cwd`, so the daemon only stores absolute ones.
@@ -66,6 +88,9 @@ fn absolute(path: &str, cwd: &Path) -> String {
 
 pub fn run(args: &[String]) {
     let mut a = parse(args);
+    if a.ack {
+        println!("{{}}");
+    }
     let Some(id) = a.session.take() else { return };
     let mut cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("/"));
     if a.stdin {
@@ -74,8 +99,8 @@ pub fn run(args: &[String]) {
         if read.is_ok()
             && let Ok(v) = serde_json::from_str::<serde_json::Value>(&buf)
         {
-            if let Some(c) = v.get("cwd").and_then(|c| c.as_str()) {
-                cwd = PathBuf::from(c);
+            if let Some(c) = payload_cwd(&v) {
+                cwd = c;
             }
             a.files.extend(payload_file(&v));
         }
@@ -129,6 +154,14 @@ mod tests {
         assert_eq!(payload_file(&nb).as_deref(), Some("/w/n.ipynb"));
         let bash = serde_json::json!({ "tool_name": "Bash", "tool_input": { "command": "ls" } });
         assert_eq!(payload_file(&bash), None);
+        let agy = serde_json::json!({
+            "toolCall": { "name": "edit_file", "args": { "Path": "/w/a.txt", "Target": "hi" } },
+            "workspacePaths": ["/w"],
+        });
+        assert_eq!(payload_file(&agy).as_deref(), Some("/w/a.txt"));
+        assert_eq!(payload_cwd(&agy), Some(PathBuf::from("/w")));
+        let view = serde_json::json!({ "toolCall": { "name": "view_file", "args": { "Path": "/w/a.txt" } } });
+        assert_eq!(payload_file(&view), None);
         assert_eq!(absolute("src/a.rs", Path::new("/w")), Path::new("/w").join("src/a.rs").to_string_lossy());
         assert_eq!(absolute("/x/a.rs", Path::new("/w")), "/x/a.rs");
     }

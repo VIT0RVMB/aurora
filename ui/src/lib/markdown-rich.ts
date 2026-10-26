@@ -509,7 +509,9 @@ const handlers = EditorView.domEventHandlers({
 
 const richTheme = EditorView.baseTheme({
   ".cm-md-h": { fontWeight: "bold", color: "var(--syn-heading)" },
-  ".cm-md-h1": { color: "var(--accent)" },
+  ".cm-md-h1": { color: "var(--accent)", fontSize: "1.6em", lineHeight: "calc(var(--cell-h) * 2)" },
+  ".cm-md-h2": { fontSize: "1.35em", lineHeight: "calc(var(--cell-h) * 1.5)" },
+  ".cm-md-h3": { fontSize: "1.15em" },
   ".cm-md-h1, .cm-md-h2": { textDecoration: "underline", textDecorationColor: "var(--line-strong)", textUnderlineOffset: "4px" },
   ".cm-md-code": { backgroundColor: "var(--bg-raised)", color: "var(--syn-string)" },
   ".cm-md-link": { color: "var(--syn-link)", textDecoration: "underline", cursor: "pointer" },

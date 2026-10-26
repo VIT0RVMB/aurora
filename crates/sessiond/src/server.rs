@@ -567,6 +567,11 @@ impl Server {
         {
             cmd.env(agents::OPENCODE_CONFIG_DIR, dir);
         }
+        if spec.hooks == Hooks::Antigravity
+            && let Some(home) = session::home_dir()
+        {
+            session::antigravity_plugin(&home, &self.cfg.helper_exe);
+        }
         cmd.env(session::ENV_SESSION, &id);
         cmd.env(session::ENV_ENDPOINT, &self.endpoint);
 

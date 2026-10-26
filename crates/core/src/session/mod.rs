@@ -96,6 +96,32 @@ pub fn opencode_config_dir(data_dir: &Path, notify_exe: &Path) -> Option<PathBuf
     Some(dir)
 }
 
+/// The user's home folder, `None` when the environment doesn't name one.
+pub fn home_dir() -> Option<PathBuf> {
+    let var = if cfg!(windows) { "USERPROFILE" } else { "HOME" };
+    std::env::var_os(var).filter(|h| !h.is_empty()).map(PathBuf::from)
+}
+
+/// Aurora's plugin in Antigravity's global config folder
+/// (`~/.gemini/config/plugins/aurora`), written when its text changes so it
+/// always points at the current helper. `None` when it can't be written;
+/// sessions then fall back to process state.
+pub fn antigravity_plugin(home: &Path, notify_exe: &Path) -> Option<PathBuf> {
+    let dir = home.join(".gemini").join("config").join("plugins").join("aurora");
+    let files = [
+        ("plugin.json", r#"{ "name": "aurora", "description": "Reports session status to Aurora. No-op outside Aurora sessions." }"#.to_string()),
+        ("hooks.json", agents::antigravity_hooks(notify_exe)),
+    ];
+    for (name, text) in files {
+        let file = dir.join(name);
+        if std::fs::read_to_string(&file).ok().as_deref() != Some(text.as_str()) {
+            std::fs::create_dir_all(&dir).ok()?;
+            std::fs::write(&file, text).ok()?;
+        }
+    }
+    Some(dir)
+}
+
 /// Unix socket path, or named pipe name on Windows, for a data folder.
 pub fn endpoint(data_dir: &Path) -> String {
     #[cfg(windows)]
@@ -297,6 +323,17 @@ mod tests {
         assert!(std::fs::read_to_string(&file).unwrap().contains(r#"const EXE = "/bin/helper";"#));
         opencode_config_dir(tmp.path(), Path::new("/bin/other")).unwrap();
         assert!(std::fs::read_to_string(&file).unwrap().contains("/bin/other"));
+    }
+
+    #[test]
+    fn antigravity_plugin_writes_and_refreshes() {
+        let home = tempfile::tempdir().unwrap();
+        let dir = antigravity_plugin(home.path(), Path::new("/bin/helper")).unwrap();
+        assert_eq!(dir, home.path().join(".gemini/config/plugins/aurora"));
+        assert!(dir.join("plugin.json").exists());
+        assert!(std::fs::read_to_string(dir.join("hooks.json")).unwrap().contains("/bin/helper notify"));
+        antigravity_plugin(home.path(), Path::new("/bin/other")).unwrap();
+        assert!(std::fs::read_to_string(dir.join("hooks.json")).unwrap().contains("/bin/other notify"));
     }
 
     #[test]

@@ -520,7 +520,7 @@ export function App() {
       waiting ? `◆${waiting}` : null,
       tab ? `${tab.name}${tab.dirty ? " +" : ""}` : null,
       name,
-      "aurora",
+      "Aurora",
     ]
       .filter(Boolean)
       .join(" — ");

@@ -31,13 +31,28 @@ function cssVar(name: string): string {
   return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 }
 
+/**
+ * `#rgb` / `#rrggbb` as fully transparent `rgba()`, keeping the color.
+ * A see-through terminal still needs the real background color: agents ask
+ * for it (OSC 11) to tint their panels, and xterm's WebGL renderer paints
+ * dim text (`ESC[2m`) over an opaque copy of it. With transparent black,
+ * both came out black.
+ */
+export function clearOf(color: string): string {
+  let hex = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(color.trim())?.[1];
+  if (!hex) return "rgba(0, 0, 0, 0)";
+  if (hex.length === 3) hex = [...hex].map((c) => c + c).join("");
+  const [r, g, b] = [0, 2, 4].map((i) => parseInt(hex.slice(i, i + 2), 16));
+  return `rgba(${r}, ${g}, ${b}, 0)`;
+}
+
 /** Builds the xterm theme from the design tokens, so terminals follow `:theme`. */
 export function readTheme(): ITheme {
   const v = cssVar;
   // A see-through window (Preferences) shows the body's tint behind the text.
   const clear = document.documentElement.classList.contains("translucent");
   return {
-    background: clear ? "rgba(0, 0, 0, 0)" : v("--bg"),
+    background: clear ? clearOf(v("--bg")) : v("--bg"),
     foreground: v("--fg"),
     cursor: v("--cursor"),
     cursorAccent: v("--bg"),

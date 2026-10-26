@@ -143,6 +143,13 @@ function upsert(info: SessionInfo) {
   else setAll(all.length, info);
   // Archived (here or from another window): its tab goes away, the session stays.
   if (info.archived && panes.paneOf(layout(), info.id)) setLayout(panes.close(layout(), info.id));
+  // Ended (killed, or the agent exited): its tab closes; the panel still opens it.
+  if (prev?.alive && !info.alive) {
+    if (panes.paneOf(layout(), info.id)) setLayout(panes.close(layout(), info.id));
+    const name = displayName(info);
+    if (info.exitCode) notify(t("sess.endedCode", { name, code: info.exitCode }), "warn", 8000);
+    else notify(t("sess.ended", { name }));
+  }
   const becameWaiting = info.alive && info.status === "waiting" && prev?.status !== "waiting";
   const looking = focusedTerm() === info.id && document.hasFocus();
   if (becameWaiting && !looking) notify(t("sess.waiting", { name: displayName(info) }), "warn", 8000);
@@ -177,7 +184,8 @@ export async function refresh() {
       .filter((s) => s.alive)
       .reduce((acc, s) => panes.show(acc, s.id), panes.emptyLayout());
   }
-  setLayout(panes.prune(l, new Set(here().map((s) => s.id))));
+  // Sessions that ended while the app was closed lose their tabs too.
+  setLayout(panes.prune(l, new Set(here().filter((s) => s.alive).map((s) => s.id))));
 }
 
 let reconnecting = false;

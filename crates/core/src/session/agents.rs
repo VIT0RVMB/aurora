@@ -22,6 +22,10 @@ pub enum Hooks {
     /// opencode: a plugin in a config folder of ours (`OPENCODE_CONFIG_DIR`),
     /// fed by its event bus (busy, idle, permission asked).
     Opencode,
+    /// Antigravity (`agy`): a plugin in its global config folder
+    /// (`antigravity_hooks`). agy takes hooks from no flag or env var; outside
+    /// an Aurora session the hooks are no-ops, since `notify` is.
+    Antigravity,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -32,13 +36,14 @@ pub struct Launch {
 }
 
 /// Agents offered in completion. Anything else runs as a plain command.
-pub const KNOWN: &[&str] = &["claude", "codex", "opencode", "gemini", "shell"];
+pub const KNOWN: &[&str] = &["claude", "codex", "opencode", "agy", "shell"];
 
 /// `extra` is passed to the CLI after the hook wiring.
 pub fn resolve(agent: &str, extra: &[String]) -> Launch {
     let (program, mut args, hooks) = match agent {
         "claude" => ("claude".to_string(), vec![], Hooks::Claude),
         "opencode" => ("opencode".to_string(), vec![], Hooks::Opencode),
+        "agy" | "antigravity" => ("agy".to_string(), vec![], Hooks::Antigravity),
         "shell" => (default_shell(), shell_args(), Hooks::None),
         other => (other.to_string(), vec![], Hooks::None),
     };
@@ -65,8 +70,9 @@ fn shell_args() -> Vec<String> {
 pub fn command_line(program: &str, args: &[String], hooks: Hooks, notify_exe: &Path) -> Vec<String> {
     let mut argv = vec![program.to_string()];
     match hooks {
-        // opencode is wired through its environment (`OPENCODE_CONFIG_DIR`).
-        Hooks::None | Hooks::Codex | Hooks::Opencode => {}
+        // opencode is wired through its environment (`OPENCODE_CONFIG_DIR`),
+        // Antigravity through a plugin in its config folder.
+        Hooks::None | Hooks::Codex | Hooks::Opencode | Hooks::Antigravity => {}
         Hooks::Claude => {
             argv.push("--settings".into());
             argv.push(claude_settings(notify_exe));
@@ -157,6 +163,29 @@ export const AuroraStatus = async ({{ $ }}) => {{
     )
 }
 
+/// `hooks.json` of the Antigravity plugin. `PreInvocation` runs before each
+/// model call (running), `PostToolUse` carries the written file (tree marks)
+/// and `Stop` ends the turn (done). agy has no hook for a permission prompt,
+/// so its sessions never show "waiting". Hooks must print a JSON object:
+/// `notify --ack` prints `{}`.
+pub fn antigravity_hooks(notify_exe: &Path) -> String {
+    let exe = if cfg!(windows) {
+        // Hooks run through `cmd /c` there.
+        format!("\"{}\"", notify_exe.to_string_lossy())
+    } else {
+        shell_quote(&notify_exe.to_string_lossy())
+    };
+    let cmd = |args: &str| serde_json::json!({ "type": "command", "command": format!("{exe} notify {args} --ack") });
+    serde_json::json!({
+        "aurora-status": {
+            "PreInvocation": [cmd("--event running")],
+            "PostToolUse": [{ "matcher": "*", "hooks": [cmd("--event running --stdin")] }],
+            "Stop": [cmd("--event done")],
+        }
+    })
+    .to_string()
+}
+
 /// Quotes a path for the shell that runs hook commands (sh on Unix, Git Bash
 /// on Windows, which accepts the same single quotes).
 pub fn shell_quote(s: &str) -> String {
@@ -199,6 +228,19 @@ mod tests {
         let js = opencode_plugin(Path::new(r#"C:\a"b\sessiond.exe"#));
         assert!(js.contains(r#"const EXE = "C:\\a\"b\\sessiond.exe";"#), "{js}");
         assert!(js.contains("${EXE} notify --event ${event}"));
+    }
+
+    #[test]
+    fn antigravity_plugin_hooks() {
+        assert_eq!(resolve("agy", &[]).hooks, Hooks::Antigravity);
+        assert_eq!(resolve("antigravity", &[]).program, "agy");
+        assert_eq!(command_line("agy", &[], Hooks::Antigravity, Path::new("/x")), ["agy"]);
+        let v: serde_json::Value =
+            serde_json::from_str(&antigravity_hooks(Path::new("/opt/x/sessiond"))).unwrap();
+        let h = &v["aurora-status"];
+        assert_eq!(h["Stop"][0]["command"], "/opt/x/sessiond notify --event done --ack");
+        assert_eq!(h["PostToolUse"][0]["matcher"], "*");
+        assert!(h["PostToolUse"][0]["hooks"][0]["command"].as_str().unwrap().contains("--stdin"));
     }
 
     #[test]

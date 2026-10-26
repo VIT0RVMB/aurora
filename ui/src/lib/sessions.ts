@@ -133,7 +133,7 @@ export function resolveSession(
 }
 
 /** Titles agents show before there is a topic; they say less than the name. */
-const GENERIC_TITLES = new Set(["claude code", "claude", "codex", "opencode", "gemini"]);
+const GENERIC_TITLES = new Set(["claude code", "claude", "codex", "opencode", "agy", "antigravity"]);
 
 /** What to call a session: your rename, else the agent's topic, else the name. */
 export function displayName(s: Pick<SessionInfo, "name" | "title" | "renamed">): string {

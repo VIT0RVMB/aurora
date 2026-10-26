@@ -4,12 +4,13 @@ import * as sessions from "../state/sessions";
 import { rightVisible, toggleRight, toggleTree, treeVisible } from "../state/ui";
 import { workspace } from "../state/workspace";
 import { t } from "../lib/i18n";
+import { activeView } from "./ActivityBar";
 
 /** Inside the native window, macOS draws its traffic lights over the left edge. */
 const overlayLights = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window && /Mac/.test(navigator.platform);
 
-function tilde(p: string) {
-  return p.replace(/^(\/Users\/[^/]+|\/home\/[^/]+|[A-Za-z]:\\Users\\[^\\]+)/, "~");
+function folderName(root: string) {
+  return root.split(/[\\/]/).filter(Boolean).pop() ?? root;
 }
 
 /** The window's own title bar: where you are, and whether a session needs you. */
@@ -30,11 +31,11 @@ export function TitleBar() {
         </Show>
       </span>
       <span class="titlebar-title" data-tauri-drag-region>
-        <b data-tauri-drag-region>aurora</b>
-        <Show when={workspace()}>
+        <Show when={workspace()} fallback={<b data-tauri-drag-region>Aurora</b>}>
+          <b data-tauri-drag-region>{folderName(workspace()!.root)}</b>
           <span class="faint" data-tauri-drag-region>
             {" · "}
-            {tilde(workspace()!.root)}
+            {t(`title.view.${activeView()}`)}
           </span>
         </Show>
       </span>

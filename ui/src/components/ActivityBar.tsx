@@ -23,11 +23,18 @@ export function showSessions() {
   if (first) void sessions.focusSession(first);
 }
 
+/** Which of the activity bar's views is showing. */
+export function activeView(): "home" | "files" | "sessions" {
+  if (ui.mode() === "sessions") return "sessions";
+  const home = ui.centerView() === "home" || (ui.centerView() === "auto" && !editor.tabs.length);
+  return home ? "home" : "files";
+}
+
 /** Icon column left of the file tree: home, files, sessions. */
 export function ActivityBar() {
-  const home = () => ui.mode() === "work" && (ui.centerView() === "home" || (ui.centerView() === "auto" && !editor.tabs.length));
-  const files = () => ui.mode() === "work" && !home();
-  const inSessions = () => ui.mode() === "sessions";
+  const home = () => activeView() === "home";
+  const files = () => activeView() === "files";
+  const inSessions = () => activeView() === "sessions";
   return (
     <nav class="activity" aria-label={t("activity.label")}>
       <button class="activity-btn" classList={{ active: home() }} title={t("activity.home")} onClick={ui.goHome}>

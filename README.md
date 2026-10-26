@@ -27,7 +27,7 @@ All keyboard-driven, vim style.
 ## Features
 
 **Agent sessions**
-- `claude`, `codex`, `opencode`, `gemini` or a plain `shell`, in tabs and splits.
+- `claude`, `codex`, `opencode`, `agy` (Antigravity) or a plain `shell`, in tabs and splits.
 - Close and reopen the app, and the history (scrollback) comes back.
 - States from hooks: running, waiting for you, done and error.
 - Optional git worktree per session. Removal asks for confirmation when the worktree has uncommitted changes.
