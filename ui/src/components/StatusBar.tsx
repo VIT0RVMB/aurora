@@ -26,7 +26,9 @@ export function StatusBar() {
   const term = () => (ui.area() === "terminal" ? sessions.byId(sessions.activeSession()) : undefined);
   return (
     <footer class="statusbar">
-      <span class={`status-mode ${mode().tone}`}>{mode().text}</span>
+      <Show when={vimEnabled()}>
+        <span class={`status-mode ${mode().tone}`}>{mode().text}</span>
+      </Show>
       <Show
         when={term()}
         fallback={
@@ -58,11 +60,8 @@ export function StatusBar() {
         {(tab) => (
           <span class="status-right">
             <span>UTF-8</span>
-            <span class="faint">|</span>
             <span>{tab().plain ? "plain" : (tab().language ?? "text")}</span>
-            <span class="faint">|</span>
             <span>{tab().eol.toUpperCase()}</span>
-            <span class="faint">|</span>
             <span>
               {cursor().line}:{cursor().col}
             </span>

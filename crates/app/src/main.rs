@@ -33,8 +33,6 @@ fn main() {
             commands::search_text,
             commands::cancel_search,
             commands::quit,
-            commands::list_themes,
-            commands::load_theme,
             sessions::session_list,
             sessions::session_create,
             sessions::session_attach,

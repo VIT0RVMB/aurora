@@ -61,7 +61,7 @@ const terminalTheme = EditorView.theme({
   "&": { height: "100%", color: "var(--fg)", backgroundColor: "var(--surface)", fontSize: "var(--font-size)" },
   "&.cm-focused": { outline: "none" },
   ".cm-scroller": { fontFamily: "var(--font-mono)", lineHeight: "var(--cell-h)" },
-  ".cm-content": { caretColor: "var(--cursor)", padding: "0" },
+  ".cm-content": { caretColor: "var(--cursor)", padding: "var(--sp-2) 0" },
   ".cm-line": { padding: "0 var(--cell-w)" },
   // Bar in insert mode (and without vim); vim's normal mode draws a block.
   ".cm-cursor, .cm-dropCursor": { borderLeft: "2px solid var(--cursor)" },
@@ -73,10 +73,10 @@ const terminalTheme = EditorView.theme({
   },
   "&.cm-focused > .cm-scroller > .cm-selectionLayer .cm-selectionBackground, .cm-selectionBackground":
     { backgroundColor: "var(--selection) !important" },
-  ".cm-activeLine": { backgroundColor: "var(--bg-panel)" },
+  ".cm-activeLine": { backgroundColor: "color-mix(in srgb, var(--fg) 4%, transparent)" },
   ".cm-gutters": { backgroundColor: "var(--surface)", color: "var(--fg-faint)", border: "none" },
   ".cm-lineNumbers .cm-gutterElement": { padding: "0 var(--cell-w) 0 calc(var(--cell-w) * 2)" },
-  ".cm-activeLineGutter": { backgroundColor: "var(--bg-panel)", color: "var(--fg-dim)" },
+  ".cm-activeLineGutter": { backgroundColor: "transparent", color: "var(--fg-dim)" },
   ".cm-foldGutter .cm-gutterElement": { padding: "0", width: "calc(var(--cell-w) * 2)" },
   ".cm-matchingBracket": { color: "var(--accent) !important", backgroundColor: "var(--match-bg)" },
   ".cm-selectionMatch": { backgroundColor: "var(--match-bg)" },
@@ -88,7 +88,7 @@ const terminalTheme = EditorView.theme({
   ".cm-panel input, .cm-panel button, .cm-panel label": { fontSize: "inherit", fontFamily: "inherit" },
   ".cm-textfield": { border: "1px solid var(--line-strong)", backgroundColor: "var(--bg)", color: "var(--fg)" },
   ".cm-button": { backgroundImage: "none", backgroundColor: "var(--bg-raised)", border: "1px solid var(--line-strong)", color: "var(--fg)" },
-  ".cm-tooltip": { backgroundColor: "var(--bg-raised)", border: "1px solid var(--line-strong)" },
+  ".cm-tooltip": { backgroundColor: "var(--bg-raised)", border: "none", borderRadius: "var(--radius)", boxShadow: "var(--shadow)" },
   ".cm-foldPlaceholder": { backgroundColor: "var(--bg-raised)", border: "none", color: "var(--fg-dim)" },
 });
 

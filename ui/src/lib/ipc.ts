@@ -144,25 +144,6 @@ export interface NewSession {
   rows: number;
 }
 
-export type ThemeVariant = "dark" | "light";
-
-export interface ThemeInfo {
-  id: string;
-  name: string;
-  variant: ThemeVariant;
-}
-
-export interface ThemeList {
-  /** Folder the schemes are read from. */
-  dir: string;
-  themes: ThemeInfo[];
-}
-
-export interface ThemeTokens extends ThemeInfo {
-  /** CSS custom property (plus `color-scheme`) to value. */
-  tokens: Record<string, string>;
-}
-
 export interface CoreError {
   kind: string;
   message: string;
@@ -214,8 +195,6 @@ export const core = {
     invoke<SearchResults>("search_text", { query, options }),
   cancelSearch: () => invoke<void>("cancel_search"),
   quit: () => invoke<void>("quit"),
-  listThemes: () => invoke<ThemeList>("list_themes"),
-  loadTheme: (id: string) => invoke<ThemeTokens>("load_theme", { id }),
   onFsChange: (cb: (b: FsBatch) => void): Promise<UnlistenFn> =>
     listen<FsBatch>("fs-change", (e) => cb(e.payload)),
 

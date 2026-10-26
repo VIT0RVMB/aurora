@@ -57,7 +57,7 @@ export const active = () => panes.focusedPane(groups()).active;
 export const [cursor, setCursor] = createSignal({ line: 1, col: 1 });
 
 export type VimMode = "normal" | "insert" | "visual" | "v-line" | "v-block" | "replace";
-export const [vimEnabled, setVimEnabled] = createSignal(load("vim", true));
+export const [vimEnabled, setVimEnabled] = createSignal(load("vim", false));
 export const [vimMode, setVimMode] = createSignal<VimMode>("normal");
 /** Markdown renders in place (markup hidden, tables and diagrams drawn) instead of as source. */
 export const [richEnabled, setRichEnabled] = createSignal(load("rich", true));

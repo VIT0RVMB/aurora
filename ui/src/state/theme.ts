@@ -1,72 +1,33 @@
 import { createSignal } from "solid-js";
-import { core, errorMessage, type ThemeInfo, type ThemeTokens } from "../lib/ipc";
 import { load, save } from "../lib/storage";
 
-/** `dark` (phosphor) and `light` live in tokens.css; any other id is a scheme file. */
-export type Theme = string;
-const BUILTIN_THEMES = ["dark", "light"] as const;
+/** `dark` and `light` live in tokens.css; `system` follows the OS. */
+export type Theme = "system" | "dark" | "light";
+export type Variant = "dark" | "light";
+export const THEMES: readonly Theme[] = ["system", "dark", "light"];
 
-const isBuiltin = (id: string) => (BUILTIN_THEMES as readonly string[]).includes(id);
+const media = typeof window !== "undefined" ? window.matchMedia?.("(prefers-color-scheme: light)") : undefined;
+const osVariant = (): Variant => (media?.matches ? "light" : "dark");
 
-const [theme, setThemeSignal] = createSignal<Theme>("dark");
-const [themes, setThemes] = createSignal<ThemeInfo[]>([]);
-const [themesDir, setThemesDir] = createSignal("");
+const saved = load<string>("theme", "system");
+const [theme, setThemeSignal] = createSignal<Theme>((THEMES as readonly string[]).includes(saved) ? (saved as Theme) : "system");
+const [variant, setVariant] = createSignal<Variant>("dark");
 
-export { theme, themes, themesDir };
+export { theme, variant };
 
-let applied: string[] = [];
-
-function apply(id: string, variant: "dark" | "light", tokens: Record<string, string> = {}) {
-  const root = document.documentElement;
-  for (const k of applied) root.style.removeProperty(k);
-  applied = Object.keys(tokens);
-  for (const k of applied) root.style.setProperty(k, tokens[k]);
-  root.dataset.theme = variant;
-  setThemeSignal(id);
+function apply() {
+  const v = theme() === "system" ? osVariant() : (theme() as Variant);
+  document.documentElement.dataset.theme = v;
+  setVariant(v);
 }
 
-// Phosphor (dark) is the look of the app. A scheme's tokens are cached so it
-// paints on the first frame; the core refreshes them right after.
-const initial = load<Theme>("theme", "dark");
-const cached = load<ThemeTokens | null>("theme-tokens", null);
-if (isBuiltin(initial)) apply(initial, initial as "dark" | "light");
-else if (cached?.id === initial) apply(initial, cached.variant, cached.tokens);
-else apply("dark", "dark");
+apply();
+media?.addEventListener("change", () => theme() === "system" && apply());
 
-/** Re-reads the saved scheme and the list from the core; called once the core is reachable. */
-export async function syncTheme(): Promise<void> {
-  if (!isBuiltin(initial) && (await setTheme(initial))) await setTheme("dark");
-  await refreshThemes();
-}
-
-/** Reloads the list of schemes from the themes folder. */
-export async function refreshThemes(): Promise<void> {
-  try {
-    const l = await core.listThemes();
-    setThemes(l.themes);
-    setThemesDir(l.dir);
-  } catch {
-    // No list: completion just offers the built-ins.
-  }
-}
-
-/** Switches theme; resolves to an error message, if any. */
-export async function setTheme(next: Theme | "toggle"): Promise<string | void> {
-  if (next === "toggle") {
-    const variant = document.documentElement.dataset.theme === "light" ? "light" : "dark";
-    next = variant === "dark" ? "light" : "dark";
-  }
-  if (isBuiltin(next)) {
-    apply(next, next as "dark" | "light");
-    save("theme", next);
-    return;
-  }
-  try {
-    const t = await core.loadTheme(next);
-    apply(t.id, t.variant, t.tokens);
-    save("theme", t.id);
-    save("theme-tokens", t);
-  } catch (e) {
-    return errorMessage(e);
-  }
+/** Switches theme; `toggle` flips the variant on screen. */
+export function setTheme(next: Theme | "toggle"): void {
+  if (next === "toggle") next = variant() === "dark" ? "light" : "dark";
+  setThemeSignal(next);
+  save("theme", next);
+  apply();
 }

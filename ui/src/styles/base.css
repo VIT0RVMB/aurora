@@ -14,10 +14,9 @@ body,
 body {
   background: color-mix(in srgb, var(--bg) calc(var(--bg-alpha) * 100%), transparent);
   color: var(--fg);
-  font-family: var(--font-mono);
-  font-size: var(--font-size);
-  line-height: var(--cell-h);
-  font-variant-ligatures: none;
+  font-family: var(--font-ui);
+  font-size: var(--ui-size);
+  line-height: 1.45;
   -webkit-font-smoothing: antialiased;
   overflow: hidden;
   user-select: none;
@@ -49,26 +48,32 @@ input {
 }
 
 :focus-visible {
-  outline: 1px solid var(--accent);
-  outline-offset: -1px;
+  outline: 2px solid color-mix(in srgb, var(--accent) 60%, transparent);
+  outline-offset: -2px;
 }
 input:focus-visible {
   outline: none;
 }
 
 ::-webkit-scrollbar {
-  width: var(--cell-w);
-  height: var(--cell-w);
+  width: 10px;
+  height: 10px;
 }
 ::-webkit-scrollbar-thumb {
-  background: var(--line-strong);
+  background: color-mix(in srgb, var(--fg-faint) 35%, transparent);
+  border: 3px solid transparent;
+  border-radius: 10px;
+  background-clip: content-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background-color: color-mix(in srgb, var(--fg-faint) 60%, transparent);
 }
 ::-webkit-scrollbar-track,
 ::-webkit-scrollbar-corner {
   background: transparent;
 }
 
-/* Shared TUI primitives */
+/* Shared primitives */
 .dim {
   color: var(--fg-dim);
 }
@@ -87,36 +92,53 @@ input:focus-visible {
 .match {
   color: var(--match);
   background: var(--match-bg);
+  border-radius: 2px;
+}
+.mono {
+  font-family: var(--font-mono);
 }
 
 .kbd {
-  color: var(--fg-dim);
-  padding: 0 var(--cell-w);
-  border: 1px solid var(--line-strong);
-  line-height: calc(var(--cell-h) - 4px);
   display: inline-block;
+  min-width: 20px;
+  padding: 0 var(--sp-1);
+  border: 1px solid var(--line-strong);
+  border-bottom-width: 2px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-raised);
+  color: var(--fg-dim);
+  font-size: var(--ui-small);
+  line-height: 18px;
+  text-align: center;
 }
 
 .panel-title {
   height: var(--bar-h);
   align-items: center;
-  padding: 0 calc(2 * var(--cell-w));
+  padding: 0 var(--sp-3);
   color: var(--fg-dim);
   border-bottom: 1px solid var(--line);
   display: flex;
-  gap: var(--cell-w);
+  gap: var(--sp-2);
   white-space: nowrap;
   overflow: hidden;
   flex: none;
 }
 .panel-title b {
   color: var(--fg);
-  font-weight: normal;
+  font-weight: 600;
 }
 
 .toggle {
   color: var(--fg-faint);
-  padding: 0 calc(var(--cell-w) / 2);
+  padding: 0 var(--sp-1);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-mono);
+  font-size: var(--ui-small);
+}
+.toggle:hover {
+  background: var(--bg-hover);
+  color: var(--fg);
 }
 .toggle[aria-pressed="true"] {
   color: var(--accent-fg);

@@ -7,7 +7,7 @@ import { displayName, sameFolder, sortSessions } from "../lib/sessions";
 import { load, save } from "../lib/storage";
 import type { TermHandle } from "../lib/terminal";
 import { bgOpacity, fontKey, termScroll } from "./prefs";
-import { theme } from "./theme";
+import { variant } from "./theme";
 import type { DropTarget } from "./drag";
 import { confirm, dock, notify, setDock, setTerminalVisible, toggleTerminal } from "./ui";
 import { workspace } from "./workspace";
@@ -120,7 +120,7 @@ function disposeTerminal(id: string) {
 // Terminals follow the theme; tokens change on the next frame.
 createRoot(() => {
   createEffect(() => {
-    theme();
+    variant();
     bgOpacity();
     requestAnimationFrame(() => terms.forEach((t) => t.applyTheme()));
   });

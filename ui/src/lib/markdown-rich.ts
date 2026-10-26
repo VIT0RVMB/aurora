@@ -507,25 +507,43 @@ const handlers = EditorView.domEventHandlers({
   },
 });
 
+const MONO = "var(--font-mono)";
+
+const proseTheme = EditorView.theme({
+  "&.cm-md-prose .cm-content": {
+    fontFamily: "var(--font-ui)",
+    fontSize: "calc(var(--font-size) + 2px)",
+    lineHeight: "1.65",
+    maxWidth: "760px",
+    padding: "var(--sp-4) var(--sp-5) 30vh",
+  },
+  "&.cm-md-prose .cm-gutters": { display: "none" },
+  "&.cm-md-prose .cm-activeLine": { backgroundColor: "transparent" },
+  "&.cm-md-prose .cm-md-code, &.cm-md-prose .cm-md-codeblock, &.cm-md-prose .cm-md-table-src": {
+    fontFamily: MONO,
+    fontSize: "var(--font-size)",
+  },
+  "&.cm-md-prose .cm-md-h1, &.cm-md-prose .cm-md-h2": { lineHeight: "1.4" },
+});
+
 const richTheme = EditorView.baseTheme({
   ".cm-md-h": { fontWeight: "bold", color: "var(--syn-heading)" },
-  ".cm-md-h1": { color: "var(--accent)", fontSize: "1.6em", lineHeight: "calc(var(--cell-h) * 2)" },
-  ".cm-md-h2": { fontSize: "1.35em", lineHeight: "calc(var(--cell-h) * 1.5)" },
+  ".cm-md-h1": { fontSize: "1.75em", lineHeight: "calc(var(--cell-h) * 2)", letterSpacing: "-0.015em" },
+  ".cm-md-h2": { fontSize: "1.4em", lineHeight: "calc(var(--cell-h) * 1.5)", letterSpacing: "-0.01em" },
   ".cm-md-h3": { fontSize: "1.15em" },
-  ".cm-md-h1, .cm-md-h2": { textDecoration: "underline", textDecorationColor: "var(--line-strong)", textUnderlineOffset: "4px" },
-  ".cm-md-code": { backgroundColor: "var(--bg-raised)", color: "var(--syn-string)" },
+  ".cm-md-code": { backgroundColor: "var(--bg-active)", color: "var(--syn-string)", borderRadius: "3px", padding: "1px 3px" },
   ".cm-md-link": { color: "var(--syn-link)", textDecoration: "underline", cursor: "pointer" },
   ".cm-md-bullet": { color: "var(--accent)" },
   ".cm-md-task": { color: "var(--accent)", cursor: "pointer" },
   ".cm-md-done": { color: "var(--fg-dim)", textDecoration: "line-through" },
-  ".cm-md-quote": { borderLeft: "2px solid var(--line-strong)", color: "var(--fg-dim)" },
+  ".cm-md-quote": { borderLeft: "3px solid var(--line-strong)", color: "var(--fg-dim)" },
   ".cm-md-hr": {
     display: "inline-block",
     width: "100%",
     verticalAlign: "middle",
     borderTop: "1px solid var(--line-strong)",
   },
-  ".cm-md-codeblock": { backgroundColor: "var(--bg-panel)" },
+  ".cm-md-codeblock": { backgroundColor: "var(--bg-panel)", paddingLeft: "var(--sp-3) !important" },
   ".cm-md-lang": { color: "var(--fg-faint)" },
   ".cm-md-table-src": { color: "var(--fg-dim)" },
   ".cm-md-table-wrap": { position: "relative", display: "flex", alignItems: "flex-start", gap: "var(--cell-w)" },
@@ -535,8 +553,8 @@ const richTheme = EditorView.baseTheme({
   ".cm-md-table-src-btn": { color: "var(--fg-faint)", cursor: "pointer", padding: "0", background: "none", border: "none", font: "inherit" },
   ".cm-md-table-src-btn:hover": { color: "var(--accent)" },
   ".cm-md-table-src-btn.inline": { marginLeft: "var(--cell-w)" },
-  ".cm-md-table th, .cm-md-table td": { border: "1px solid var(--line-strong)", padding: "0 var(--cell-w)" },
-  ".cm-md-table th": { color: "var(--syn-heading)", textAlign: "left" },
+  ".cm-md-table th, .cm-md-table td": { border: "1px solid var(--line)", padding: "var(--sp-1) var(--sp-3)" },
+  ".cm-md-table th": { color: "var(--syn-heading)", textAlign: "left", backgroundColor: "var(--bg-panel)", fontWeight: "600" },
   ".cm-md-mermaid": { padding: "var(--cell-h) var(--cell-w)", color: "var(--fg-dim)" },
   ".cm-md-mermaid svg": { maxWidth: "100%", height: "auto" },
   ".cm-md-mermaid.error": { color: "var(--danger)", whiteSpace: "pre-wrap" },
@@ -549,4 +567,7 @@ export function markdownLinks(o: RichOptions): Extension {
   return [optionsFacet.of(o), handlers, keymap.of([{ key: "Mod-Enter", run: (v) => followLinkAt(v) }]), richTheme];
 }
 
-export const richMarkdown = (): Extension => [tableSource, richField, enterBlocks, focusEnteredTable];
+/** Rich mode reads like a note: proportional text, code stays monospace. */
+const prose = [EditorView.editorAttributes.of({ class: "cm-md-prose" }), proseTheme];
+
+export const richMarkdown = (): Extension => [tableSource, richField, enterBlocks, focusEnteredTable, prose];

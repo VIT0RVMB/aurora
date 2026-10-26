@@ -22,7 +22,7 @@ All keyboard-driven, vim style.
 | Several agents in the same repository get in each other's way | `:session new claude --worktree fix-login` creates an isolated worktree and branch for the session. |
 | Tabs with generic names ("claude", "claude (2)") | Each session is named after the conversation topic, like in Ghostty. `:session rename` pins any name you want. |
 | IDEs are heavy and slow to open | Tauri + Rust: an app of a few MB that opens instantly and never loads the contents of every file. |
-| You live in the terminal and in vim | Green-phosphor terminal look, vim modes, `:` for commands and Space as leader. |
+| You live in the terminal and in vim | Optional vim modes, `:` for commands and Space as leader. |
 
 ## Features
 

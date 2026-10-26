@@ -27,7 +27,7 @@ import * as editor from "./state/editor";
 import * as changes from "./state/changes";
 import * as sessions from "./state/sessions";
 import { fontKey } from "./state/prefs";
-import { refreshThemes, setTheme, themes, themesDir } from "./state/theme";
+import { setTheme, THEMES, type Theme } from "./state/theme";
 import * as ui from "./state/ui";
 import * as ws from "./state/workspace";
 import { LOCALES, locale, parseLocale, setLocale, t, type Key } from "./lib/i18n";
@@ -69,21 +69,13 @@ const commands: Command[] = [
     complete: (before) =>
       before.length === 0
         ? [
-            { value: "dark", description: `Phosphor · ${t("theme.dark")}` },
-            { value: "light", description: `Aurora Light · ${t("theme.light")}` },
+            ...THEMES.map((id) => ({ value: id, description: t(`theme.${id}`) })),
             { value: "toggle", description: t("theme.toggle") },
-            { value: "dir", description: t("theme.dir") },
-            ...themes().map((th) => ({ value: th.id, description: `${th.name} · ${t(th.variant === "dark" ? "theme.dark" : "theme.light")}` })),
           ]
         : [],
-    run: async ([id = "toggle"]) => {
-      if (id === "dir") {
-        await refreshThemes();
-        return void ui.notify(t("theme.found", { dir: themesDir(), n: themes().length }));
-      }
-      const err = await setTheme(id);
-      void refreshThemes();
-      return err ?? undefined;
+    run: ([id = "toggle"]) => {
+      if (id !== "toggle" && !(THEMES as readonly string[]).includes(id)) return t("theme.unknown", { id });
+      setTheme(id as Theme | "toggle");
     },
   },
   {
@@ -404,7 +396,7 @@ async function runLine(line: string): Promise<string | void> {
 }
 
 export function App() {
-  const [cell, setCell] = createSignal({ w: 8, h: 20 });
+  const [cell, setCell] = createSignal({ w: 8, h: 20, row: 26 });
 
   // Global keys. Capture phase so they win over CodeMirror's own bindings.
   const onKey = (e: KeyboardEvent) => {
@@ -531,7 +523,7 @@ export function App() {
   const showTree = () => ui.treeVisible() && ui.mode() !== "sessions";
   const columns = () =>
     [
-      ws.workspace() ? "calc(4 * var(--cell-w))" : "",
+      ws.workspace() ? "48px" : "",
       showTree() && ws.workspace() ? `calc(${ui.treeCells()} * var(--cell-w)) 1px` : "",
       "minmax(0, 1fr)",
       ui.rightVisible() && ws.workspace() ? `1px calc(${ui.rightCells()} * var(--cell-w))` : "",
@@ -546,7 +538,7 @@ export function App() {
         <main class="layout" style={{ "grid-template-columns": columns() }}>
           <ActivityBar />
           <Show when={showTree()}>
-            <FileTree rowH={() => cell().h} />
+            <FileTree rowH={() => cell().row} />
             <Splitter
               cells={ui.treeCells}
               setCells={ui.setTreeCells}
@@ -573,7 +565,9 @@ export function App() {
         </main>
       </Show>
       <StatusBar />
-      <HintBar />
+      <Show when={editor.vimEnabled()}>
+        <HintBar />
+      </Show>
       <Show when={ui.palette()} keyed>
         <Palette commands={commands} run={runLine} />
       </Show>

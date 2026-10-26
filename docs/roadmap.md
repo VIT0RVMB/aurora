@@ -21,3 +21,20 @@ Os terminais rodam em xterm.js dentro do webview, com três remendos:
 
 3. **Terminal nativo sobreposto** (libghostty/Alacritty numa NSView sobre o webview). Descartado: a view nativa fica sempre acima do HTML, então perde paleta, menus e arrasto de abas sobre o terminal; perde transparência/blur coerentes; splits viram sincronização de coordenadas; foco e teclado divididos; libghostty embutível só está maduro no macOS, e o app mira Windows também.
 
+## Visual moderno (IDE + notas)
+
+Branch `ui-modern`. Referência Obsidian/Linear, fonte do sistema na interface, accent azul, dois temas (claro/escuro, com `system` seguindo o SO).
+
+Feito:
+
+1. **Temas**: só `system`/`dark`/`light` em `tokens.css`; Base16/Base24 e `core::theme` removidos.
+2. **Grade de células fora do chrome**: interface em fonte do sistema e escala `--sp-*`; células só no código, terminal e larguras de painel (`--cell-w` medido da fonte mono).
+3. **Componentes**: painéis sem moldura, cards na home/quadro/diff/histórico, abas em pílula, chevrons desenhados em CSS na árvore, switches nas Preferências, menus e paleta com sombra e cantos arredondados. Vim desligado por padrão; badge de modo e barra de dicas só com vim.
+4. **Markdown como notas**: no modo rico, texto proporcional alinhado à esquerda (até 760px de largura), sem gutter; código, blocos e fonte de tabela continuam mono.
+
+Próximos passos:
+
+- Ícones de arquivo/pasta na árvore e checkboxes de tarefa renderizados de verdade no markdown.
+- Mermaid com a fonte da interface.
+- Tela de boas-vindas (sem pasta aberta) revisada no app real.
+- Conferir translucidez/blur no app real (os screenshots são do mock no Chrome).

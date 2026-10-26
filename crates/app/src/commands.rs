@@ -206,31 +206,6 @@ pub fn quit(app: AppHandle) {
     app.exit(0);
 }
 
-#[derive(Serialize)]
-pub struct ThemeList {
-    dir: String,
-    themes: Vec<aurora_core::theme::ThemeInfo>,
-}
-
-/// Schemes in the themes folder, created on first call so it is easy to find.
-#[tauri::command]
-pub async fn list_themes() -> CmdResult<ThemeList> {
-    blocking(|| {
-        let dir = aurora_core::theme::dir(&aurora_core::session::data_dir());
-        std::fs::create_dir_all(&dir)?;
-        Ok(ThemeList { dir: dir.display().to_string(), themes: aurora_core::theme::list(&dir) })
-    })
-    .await
-}
-
-#[tauri::command]
-pub async fn load_theme(id: String) -> CmdResult<aurora_core::theme::ThemeTokens> {
-    blocking(move || {
-        aurora_core::theme::load(&aurora_core::theme::dir(&aurora_core::session::data_dir()), &id)
-    })
-    .await
-}
-
 pub async fn blocking<T: Send + 'static>(
     f: impl FnOnce() -> aurora_core::Result<T> + Send + 'static,
 ) -> CmdResult<T> {

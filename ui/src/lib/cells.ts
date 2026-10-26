@@ -5,16 +5,24 @@ export function snapToCells(px: number, cellW: number, minCells: number, maxCell
   return Math.min(maxCells, Math.max(minCells, cells));
 }
 
-/** Width of one monospace cell in px, measured from the real font. */
-export function measureCell(el: HTMLElement = document.body): { w: number; h: number } {
+/**
+ * One monospace cell in px, measured from the code font, plus the list row
+ * height. Also writes the width to `--cell-w` so CSS sizes in cells match.
+ */
+export function measureCell(el: HTMLElement = document.body): { w: number; h: number; row: number } {
   const probe = document.createElement("span");
   probe.textContent = "M".repeat(100);
-  probe.style.cssText = "position:absolute;visibility:hidden;white-space:pre";
+  probe.style.cssText =
+    "position:absolute;visibility:hidden;white-space:pre;font-family:var(--font-mono);font-size:var(--font-size)";
   el.appendChild(probe);
   const w = probe.getBoundingClientRect().width / 100;
   probe.remove();
-  const h = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--cell-h")) || 20;
-  return { w, h };
+  const root = document.documentElement;
+  if (w > 0) root.style.setProperty("--cell-w", `${w}px`);
+  const css = getComputedStyle(root);
+  const h = parseFloat(css.getPropertyValue("--cell-h")) || 20;
+  const row = parseFloat(css.getPropertyValue("--row-h")) || 26;
+  return { w, h, row };
 }
 
 /**

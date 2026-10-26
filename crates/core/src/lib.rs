@@ -11,7 +11,6 @@ pub mod open;
 mod paths;
 mod search;
 pub mod session;
-pub mod theme;
 mod tree;
 mod watch;
 mod workspace;

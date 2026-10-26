@@ -1,4 +1,4 @@
-import { createMemo, createSignal, For, onCleanup, onMount, Show } from "solid-js";
+import { createMemo, createSignal, For, onCleanup, onMount } from "solid-js";
 import {
   BG_OPACITY_MIN,
   BG_OPACITY_STEP,
@@ -21,7 +21,7 @@ import {
   termScroll,
 } from "../state/prefs";
 import { richEnabled, setRich, setVim, vimEnabled } from "../state/editor";
-import { refreshThemes, setTheme, theme, themes, themesDir } from "../state/theme";
+import { setTheme, theme, THEMES, type Theme } from "../state/theme";
 import { notify, setPrefsOpen } from "../state/ui";
 import { LOCALES, locale, setLocale, t, type Locale } from "../lib/i18n";
 
@@ -87,19 +87,10 @@ export function Prefs() {
   };
   onMount(() => {
     window.addEventListener("keydown", onKey, true);
-    void refreshThemes();
   });
   onCleanup(() => window.removeEventListener("keydown", onKey, true));
 
-  const themeRows = createMemo<Row[]>(() => [
-    { id: "dark", label: "Phosphor", tag: t("theme.dark") },
-    { id: "light", label: "Aurora Light", tag: t("theme.light") },
-    ...themes().map((th) => ({ id: th.id, label: th.name, tag: t(th.variant === "dark" ? "theme.dark" : "theme.light") })),
-  ]);
-  const pickTheme = async (id: string) => {
-    const err = await setTheme(id);
-    if (err) notify(err, "error");
-  };
+  const themeRows = createMemo<Row[]>(() => THEMES.map((id) => ({ id, label: t(`theme.${id}`), tag: "" })));
 
   const DEFAULT = "";
   const fontRows = createMemo<Row[]>(() => {
@@ -133,19 +124,14 @@ export function Prefs() {
         <div class="prefs-body">
           <section class="prefs-col">
             <div class="prefs-head">{t("prefs.theme")}</div>
-            <Choices rows={themeRows()} current={theme()} onPick={(id) => void pickTheme(id)} />
-            <Show when={themesDir()}>
-              <div class="prefs-note faint" title={themesDir()}>
-                {t("prefs.schemes", { dir: themesDir().replace(/^\/Users\/[^/]+/, "~") })}
-              </div>
-            </Show>
+            <Choices rows={themeRows()} current={theme()} onPick={(id) => setTheme(id as Theme)} short />
             <div class="prefs-head">{t("prefs.background")}</div>
             <div class="prefs-size">
               <button
                 disabled={bgOpacity() <= BG_OPACITY_MIN}
                 onClick={() => setBgOpacity(bgOpacity() - BG_OPACITY_STEP)}
               >
-                [−]
+                −
               </button>
               <input
                 type="range"
@@ -159,12 +145,12 @@ export function Prefs() {
               />
               <span class="prefs-pct">{bgOpacity()}%</span>
               <button disabled={bgOpacity() >= 100} onClick={() => setBgOpacity(bgOpacity() + BG_OPACITY_STEP)}>
-                [+]
+                +
               </button>
             </div>
             <label class="prefs-check" classList={{ faint: bgOpacity() >= 100 }}>
               <input type="checkbox" checked={bgBlur()} onChange={(e) => setBgBlur(e.currentTarget.checked)} />
-              <span>{bgBlur() ? "[x]" : "[ ]"}</span> {t("prefs.blur")}
+              <span class="switch" classList={{ on: bgBlur() }} /> {t("prefs.blur")}
             </label>
             <div class="prefs-head">{t("prefs.language")}</div>
             <Choices
@@ -195,7 +181,7 @@ export function Prefs() {
             <div class="prefs-head">{t("prefs.size")}</div>
             <div class="prefs-size">
               <button disabled={fontSize() <= FONT_SIZE_MIN} onClick={() => setFontSize(fontSize() - 1)}>
-                [−]
+                −
               </button>
               <input
                 type="number"
@@ -206,7 +192,7 @@ export function Prefs() {
               />
               <span class="faint">px</span>
               <button disabled={fontSize() >= FONT_SIZE_MAX} onClick={() => setFontSize(fontSize() + 1)}>
-                [+]
+                +
               </button>
             </div>
             <div class="prefs-preview">
@@ -218,22 +204,22 @@ export function Prefs() {
             <div class="prefs-size">
               <span class="faint">{t("prefs.scroll")}</span>
               <button disabled={termScroll() <= SCROLL_MIN} onClick={() => setTermScroll(termScroll() - 1)}>
-                [−]
+                −
               </button>
               <span class="prefs-pct">{termScroll()}</span>
               <button disabled={termScroll() >= SCROLL_MAX} onClick={() => setTermScroll(termScroll() + 1)}>
-                [+]
+                +
               </button>
               <span class="faint">{t("prefs.scrollUnit")}</span>
             </div>
             <div class="prefs-head">{t("prefs.editor")}</div>
             <label class="prefs-check">
               <input type="checkbox" checked={vimEnabled()} onChange={(e) => setVim(e.currentTarget.checked)} />
-              <span>{vimEnabled() ? "[x]" : "[ ]"}</span> {t("prefs.vim")}
+              <span class="switch" classList={{ on: vimEnabled() }} /> {t("prefs.vim")}
             </label>
             <label class="prefs-check">
               <input type="checkbox" checked={richEnabled()} onChange={(e) => setRich(e.currentTarget.checked)} />
-              <span>{richEnabled() ? "[x]" : "[ ]"}</span> {t("prefs.rich")}
+              <span class="switch" classList={{ on: richEnabled() }} /> {t("prefs.rich")}
             </label>
           </section>
         </div>

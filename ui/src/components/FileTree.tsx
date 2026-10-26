@@ -152,7 +152,7 @@ export function FileTree(p: { rowH: () => number }) {
                 }}
                 title={row.entry.path}
               >
-                <span class="tree-glyph">{row.entry.isDir ? (row.expanded ? "▾" : "▸") : " "}</span>
+                <span class="tree-glyph" classList={{ chevron: row.entry.isDir, open: row.expanded }} />
                 <span class="tree-name">{row.entry.name}</span>
                 <Show when={row.loading}>
                   <span class="faint"> …</span>

@@ -1,83 +1,104 @@
 /*
- * Aurora design system. Everything sits on a monospace cell grid:
- * one cell is 1ch wide and --cell-h tall. Sizes are expressed in cells
- * (calc(n * var(--cell-w))) so panels, rows and gutters line up like a TUI.
+ * Aurora design system. The chrome uses the system UI font and a 4px spacing
+ * scale; code and terminals keep the monospace grid, where one cell is
+ * --cell-w wide (measured from the mono font at runtime) and --cell-h tall.
+ * Panel widths are stored in cells so they line up with the terminal.
  * Colors are tokens; components never use literal colors.
  */
 :root {
+  --font-ui: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
   --font-mono: "JetBrains Mono", "Berkeley Mono", "SF Mono", "Cascadia Code", Menlo, Consolas,
     "DejaVu Sans Mono", monospace;
+  --ui-size: 13px;
+  --ui-small: 12px;
+  /* Code and terminal size (Preferences). */
   --font-size: 13px;
-  /* Strong selection: the picked row of a focused list, the active tab's
-     unfocused twin. Derived, so every theme gets one. */
-  --bg-pick: color-mix(in srgb, var(--accent) 50%, var(--bg));
+
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 24px;
+  --sp-6: 32px;
+  --radius-sm: 4px;
+  --radius: 6px;
+  --radius-lg: 10px;
+
+  /* Rows of lists (tree, sessions, palette); TS reads it at runtime. */
+  --row-h: 26px;
+  /* Title and tab bars. */
+  --bar-h: 38px;
+  --status-h: 24px;
+  /* Set from the mono font at runtime; this is the fallback. */
+  --cell-w: 8px;
+  /* Code line height; follows the font size (Preferences). */
+  --cell-h: 20px;
+
+  /* Strong selection: the picked row of a focused list. */
+  --bg-pick: color-mix(in srgb, var(--accent) 22%, transparent);
   /* Large surfaces paint these; with a see-through window (Preferences)
      they turn transparent and only the body carries the tint. */
   --bg-alpha: 1;
   --surface: var(--bg);
   --surface-panel: var(--bg-panel);
-  --radius: 4px;
-  --cell-w: 1ch;
-  /* Row height of virtualized lists; TS reads it at runtime. */
-  --cell-h: 20px;
-  /* Title, tab and hint bars: two rows tall, like a TUI's chrome. */
-  --bar-h: calc(2 * var(--cell-h));
 
   color-scheme: dark;
-  /* Phosphor: a green-on-black terminal. */
-  --bg: #070f0b;
-  --bg-panel: #091410;
-  --bg-raised: #0d1c15;
-  --bg-hover: #0f2219;
-  --bg-select: #12301f;
-  --bg-select-dim: #0e2219;
-  --line: #16301f;
-  --line-strong: #23472f;
-  --fg: #d3f2da;
-  --fg-dim: #84ad90;
-  --fg-faint: #4b6d56;
-  --accent: #5ef08c;
-  --accent-fg: #03140a;
-  --accent-2: #9be8c0;
-  --warn: #e9c86b;
-  --danger: #ff7b6b;
-  --info: #7fd8c6;
-  --match: #5ef08c;
-  --match-bg: rgba(94, 240, 140, 0.14);
-  --cursor: #5ef08c;
-  --selection: rgba(94, 240, 140, 0.2);
+  --bg: #19191c;
+  --bg-panel: #141416;
+  --bg-raised: #222226;
+  --bg-hover: #26262a;
+  --bg-active: #2c2c31;
+  --bg-select: #263552;
+  --bg-select-dim: #23232a;
+  --line: #2a2a2f;
+  --line-strong: #3a3a41;
+  --fg: #e6e6ea;
+  --fg-dim: #a0a0aa;
+  --fg-faint: #6c6c76;
+  --accent: #4f8cff;
+  --accent-fg: #ffffff;
+  --accent-2: #a78bfa;
+  --warn: #e5b450;
+  --danger: #f2665c;
+  --info: #5fb4f0;
+  --success: #4cc38a;
+  --match: #8ab4ff;
+  --match-bg: rgba(79, 140, 255, 0.2);
+  --cursor: #4f8cff;
+  --selection: rgba(79, 140, 255, 0.28);
+  --shadow: 0 12px 32px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(255, 255, 255, 0.06);
 
-  --syn-keyword: #5ef08c;
-  --syn-string: #b9e6a8;
-  --syn-number: #e9c86b;
-  --syn-comment: #4f7a5d;
-  --syn-function: #8fe0cb;
-  --syn-type: #7af5a6;
-  --syn-variable: #d3f2da;
-  --syn-property: #a9dcb8;
-  --syn-operator: #6f9b7f;
-  --syn-tag: #ff9a7a;
-  --syn-attr: #e9c86b;
-  --syn-heading: #5ef08c;
-  --syn-link: #5ef08c;
+  --syn-keyword: #c792ea;
+  --syn-string: #a5d6a7;
+  --syn-number: #f5b97a;
+  --syn-comment: #6c6c76;
+  --syn-function: #82aaff;
+  --syn-type: #ffcb6b;
+  --syn-variable: #e6e6ea;
+  --syn-property: #89ddff;
+  --syn-operator: #a0a0aa;
+  --syn-tag: #f07178;
+  --syn-attr: #ffcb6b;
+  --syn-heading: #e6e6ea;
+  --syn-link: #6ea2ff;
 
   /* Terminal palette (ANSI 0-15), read by xterm.js at runtime. */
-  --ansi-black: #0d1c15;
-  --ansi-red: #ff7b6b;
-  --ansi-green: #5ef08c;
-  --ansi-yellow: #e9c86b;
-  --ansi-blue: #7fb8ff;
-  --ansi-magenta: #c7a2ff;
-  --ansi-cyan: #7fd8c6;
-  --ansi-white: #d3f2da;
-  --ansi-bright-black: #4b6d56;
-  --ansi-bright-red: #ff9d90;
-  --ansi-bright-green: #9cf7b9;
-  --ansi-bright-yellow: #f3da94;
-  --ansi-bright-blue: #a8cfff;
-  --ansi-bright-magenta: #dcc4ff;
-  --ansi-bright-cyan: #b0ebde;
-  --ansi-bright-white: #f1fff4;
+  --ansi-black: #2a2a2f;
+  --ansi-red: #f2665c;
+  --ansi-green: #4cc38a;
+  --ansi-yellow: #e5b450;
+  --ansi-blue: #4f8cff;
+  --ansi-magenta: #b48cf2;
+  --ansi-cyan: #4fc1d6;
+  --ansi-white: #d4d4da;
+  --ansi-bright-black: #6c6c76;
+  --ansi-bright-red: #ff8a80;
+  --ansi-bright-green: #72d9a6;
+  --ansi-bright-yellow: #f2cc7a;
+  --ansi-bright-blue: #7eaaff;
+  --ansi-bright-magenta: #cdb0ff;
+  --ansi-bright-cyan: #7ed6e6;
+  --ansi-bright-white: #ffffff;
 }
 
 html.translucent {
@@ -87,56 +108,59 @@ html.translucent {
 
 :root[data-theme="light"] {
   color-scheme: light;
-  --bg: #f7f6f1;
-  --bg-panel: #efeee7;
-  --bg-raised: #e7e5dc;
-  --bg-hover: #e3e1d7;
-  --bg-select: #d3e9df;
-  --bg-select-dim: #e2e6df;
-  --line: #dcd9ce;
-  --line-strong: #c7c3b6;
-  --fg: #22262b;
-  --fg-dim: #66707a;
-  --fg-faint: #a8a89e;
-  --accent: #0e7c55;
-  --accent-fg: #f7f6f1;
-  --accent-2: #6d3fd6;
-  --warn: #8f6500;
-  --danger: #c0392b;
-  --info: #1f62b5;
-  --match: #0e7c55;
-  --match-bg: rgba(14, 124, 85, 0.14);
-  --cursor: #0e7c55;
-  --selection: rgba(31, 98, 181, 0.18);
+  --bg: #ffffff;
+  --bg-panel: #f7f7f8;
+  --bg-raised: #ffffff;
+  --bg-hover: #efeff1;
+  --bg-active: #e7e7ea;
+  --bg-select: #dce8ff;
+  --bg-select-dim: #ececef;
+  --line: #e7e7ea;
+  --line-strong: #d4d4d9;
+  --fg: #1b1b1f;
+  --fg-dim: #5c5c66;
+  --fg-faint: #9a9aa3;
+  --accent: #2563eb;
+  --accent-fg: #ffffff;
+  --accent-2: #7c3aed;
+  --warn: #b7791f;
+  --danger: #d93a2f;
+  --info: #0b72c4;
+  --success: #15935a;
+  --match: #1d4ed8;
+  --match-bg: rgba(37, 99, 235, 0.14);
+  --cursor: #2563eb;
+  --selection: rgba(37, 99, 235, 0.2);
+  --shadow: 0 12px 32px rgba(20, 20, 30, 0.14), 0 0 0 1px rgba(20, 20, 30, 0.08);
 
-  --syn-keyword: #6d3fd6;
-  --syn-string: #2f7a32;
-  --syn-number: #a2520d;
-  --syn-comment: #8e958c;
-  --syn-function: #1f62b5;
-  --syn-type: #0e7c55;
-  --syn-variable: #22262b;
-  --syn-property: #24727f;
-  --syn-operator: #66707a;
-  --syn-tag: #b3372a;
-  --syn-attr: #8f6500;
-  --syn-heading: #0e7c55;
-  --syn-link: #1f62b5;
+  --syn-keyword: #8b3fd9;
+  --syn-string: #22863a;
+  --syn-number: #b45309;
+  --syn-comment: #9a9aa3;
+  --syn-function: #2457c5;
+  --syn-type: #a15c00;
+  --syn-variable: #1b1b1f;
+  --syn-property: #0e7490;
+  --syn-operator: #5c5c66;
+  --syn-tag: #c0362c;
+  --syn-attr: #a15c00;
+  --syn-heading: #1b1b1f;
+  --syn-link: #2563eb;
 
-  --ansi-black: #22262b;
-  --ansi-red: #c0392b;
-  --ansi-green: #0e7c55;
-  --ansi-yellow: #8f6500;
-  --ansi-blue: #1f62b5;
-  --ansi-magenta: #6d3fd6;
-  --ansi-cyan: #24727f;
-  --ansi-white: #a8a89e;
-  --ansi-bright-black: #66707a;
-  --ansi-bright-red: #e0533f;
-  --ansi-bright-green: #1a9c6e;
-  --ansi-bright-yellow: #b08300;
-  --ansi-bright-blue: #3a7fd5;
-  --ansi-bright-magenta: #8a5ce8;
-  --ansi-bright-cyan: #2f8fa0;
+  --ansi-black: #1b1b1f;
+  --ansi-red: #d93a2f;
+  --ansi-green: #15935a;
+  --ansi-yellow: #a66a00;
+  --ansi-blue: #2563eb;
+  --ansi-magenta: #8b3fd9;
+  --ansi-cyan: #0e7490;
+  --ansi-white: #9a9aa3;
+  --ansi-bright-black: #5c5c66;
+  --ansi-bright-red: #f05045;
+  --ansi-bright-green: #22b070;
+  --ansi-bright-yellow: #c98a00;
+  --ansi-bright-blue: #3b82f6;
+  --ansi-bright-magenta: #a35ef0;
+  --ansi-bright-cyan: #1592ad;
   --ansi-bright-white: #ffffff;
 }
