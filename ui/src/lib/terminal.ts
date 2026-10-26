@@ -1,6 +1,7 @@
 // xterm.js wrapper. Loaded on demand (dynamic import) so an app with no
 // sessions open never pays for the terminal code.
 import { FitAddon } from "@xterm/addon-fit";
+import { Unicode11Addon } from "@xterm/addon-unicode11";
 import { Terminal, type ITheme } from "@xterm/xterm";
 import "@xterm/xterm/css/xterm.css";
 import { fittedFontSize } from "./cells";
@@ -15,6 +16,8 @@ export interface TermHandle {
   applyTheme(): void;
   /** Picks up a new font family/size from the tokens and refits. */
   applyFont(): void;
+  /** Lines per wheel notch (and five times that with Alt held). */
+  setScrollSpeed(lines: number): void;
   size(): { cols: number; rows: number };
   /** Plain text of the whole buffer, scrollback included. */
   text(): string;
@@ -63,6 +66,7 @@ export interface TermOptions {
   onResize: (cols: number, rows: number) => void;
   /** Called once, after the first fit: the right moment to attach. */
   onOpen: () => void;
+  scrollSpeed: number;
 }
 
 function measureAdvance(family: string): number {
@@ -88,12 +92,20 @@ export function createTerminal(o: TermOptions): TermHandle {
     allowTransparency: true,
     cursorBlink: true,
     scrollback: 10_000,
-    allowProposedApi: false,
+    // Wheel and trackpad: xterm's default (1 line per notch) feels stuck.
+    scrollSensitivity: o.scrollSpeed,
+    fastScrollSensitivity: o.scrollSpeed * 5,
+    // Needed by the Unicode 11 widths below (`term.unicode`).
+    allowProposedApi: true,
     macOptionIsMeta: true,
     drawBoldTextInBrightColors: false,
   });
   const fit = new FitAddon();
   term.loadAddon(fit);
+  // Emoji (🤖 🧠 🌿 in agents' status lines) are two cells wide; xterm's
+  // default Unicode 6 tables say one, so the next text drew over them.
+  term.loadAddon(new Unicode11Addon());
+  term.unicode.activeVersion = "11";
   term.onData(o.onData);
   term.onResize(({ cols, rows }) => o.onResize(cols, rows));
 
@@ -155,6 +167,10 @@ export function createTerminal(o: TermOptions): TermHandle {
     focus: () => term.focus(),
     applyTheme: () => (term.options.theme = readTheme()),
     applyFont: refont,
+    setScrollSpeed: (lines) => {
+      term.options.scrollSensitivity = lines;
+      term.options.fastScrollSensitivity = lines * 5;
+    },
     size: () => ({ cols: term.cols, rows: term.rows }),
     type: (data) => term.input(data, true),
     text: () => {

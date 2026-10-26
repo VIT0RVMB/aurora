@@ -15,7 +15,12 @@ import {
   fontSize,
   setFontFamily,
   setFontSize,
+  SCROLL_MAX,
+  SCROLL_MIN,
+  setTermScroll,
+  termScroll,
 } from "../state/prefs";
+import { richEnabled, setRich, setVim, vimEnabled } from "../state/editor";
 import { refreshThemes, setTheme, theme, themes, themesDir } from "../state/theme";
 import { notify, setPrefsOpen } from "../state/ui";
 import { LOCALES, locale, setLocale, t, type Locale } from "../lib/i18n";
@@ -209,6 +214,27 @@ export function Prefs() {
               <span class="str">"0O il1 {"=>"} ~"</span>
               {" }"}
             </div>
+            <div class="prefs-head">{t("prefs.terminal")}</div>
+            <div class="prefs-size">
+              <span class="faint">{t("prefs.scroll")}</span>
+              <button disabled={termScroll() <= SCROLL_MIN} onClick={() => setTermScroll(termScroll() - 1)}>
+                [−]
+              </button>
+              <span class="prefs-pct">{termScroll()}</span>
+              <button disabled={termScroll() >= SCROLL_MAX} onClick={() => setTermScroll(termScroll() + 1)}>
+                [+]
+              </button>
+              <span class="faint">{t("prefs.scrollUnit")}</span>
+            </div>
+            <div class="prefs-head">{t("prefs.editor")}</div>
+            <label class="prefs-check">
+              <input type="checkbox" checked={vimEnabled()} onChange={(e) => setVim(e.currentTarget.checked)} />
+              <span>{vimEnabled() ? "[x]" : "[ ]"}</span> {t("prefs.vim")}
+            </label>
+            <label class="prefs-check">
+              <input type="checkbox" checked={richEnabled()} onChange={(e) => setRich(e.currentTarget.checked)} />
+              <span>{richEnabled() ? "[x]" : "[ ]"}</span> {t("prefs.rich")}
+            </label>
           </section>
         </div>
       </div>

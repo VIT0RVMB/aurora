@@ -427,6 +427,23 @@ impl Server {
                 self.publish(&s);
                 json(serde_json::to_value(s.snapshot()).unwrap())
             }
+            Request::SetColor { session, color } => {
+                if let Some(c) = &color
+                    && !session::COLORS.contains(&c.as_str())
+                {
+                    return Err(format!("unknown color: {c}"));
+                }
+                let s = self.get(&session)?;
+                s.info.lock().color = color;
+                self.publish(&s);
+                json(serde_json::to_value(s.snapshot()).unwrap())
+            }
+            Request::SetArchived { session, archived } => {
+                let s = self.get(&session)?;
+                s.info.lock().archived = archived;
+                self.publish(&s);
+                json(serde_json::to_value(s.snapshot()).unwrap())
+            }
             Request::Remove { session } => {
                 let s = self.get(&session)?;
                 s.removed.store(true, Ordering::Release);
@@ -439,10 +456,20 @@ impl Server {
                 self.broadcast(&ServerMsg::Removed { session });
                 json(serde_json::Value::Null)
             }
-            Request::Notify { session, event } => {
+            Request::Notify { session, event, files } => {
                 let s = self.get(&session)?;
+                if !files.is_empty()
+                    && let Err(e) = self.db.lock().add_touched(&session, &files)
+                {
+                    eprintln!("db touched {session}: {e}");
+                }
                 self.set_status(&s, event);
                 json(serde_json::Value::Null)
+            }
+            Request::Touched { session } => {
+                self.get(&session)?;
+                let files = self.db.lock().touched(&session).map_err(|e| e.to_string())?;
+                json(serde_json::to_value(files).unwrap())
             }
             Request::Shutdown => json(serde_json::Value::Null),
         }
@@ -484,10 +511,6 @@ impl Server {
         if let Some(pty) = s.pty.lock().as_mut() {
             let _ = pty.writer.write_all(bytes);
             let _ = pty.writer.flush();
-        }
-        // Codex only reports turn ends; Enter is the best sign a new turn began.
-        if s.hooks == Hooks::Codex && bytes.contains(&b'\r') {
-            self.set_status(&s, AgentEvent::Running);
         }
     }
 
@@ -537,6 +560,13 @@ impl Server {
         cmd.env("TERM", "xterm-256color");
         cmd.env("COLORTERM", "truecolor");
         cmd.env("TERM_PROGRAM", "aurora");
+        // A folder the user set wins; that session falls back to process state.
+        if spec.hooks == Hooks::Opencode
+            && cmd.get_env(agents::OPENCODE_CONFIG_DIR).is_none()
+            && let Some(dir) = session::opencode_config_dir(&self.cfg.data_dir, &self.cfg.helper_exe)
+        {
+            cmd.env(agents::OPENCODE_CONFIG_DIR, dir);
+        }
         cmd.env(session::ENV_SESSION, &id);
         cmd.env(session::ENV_ENDPOINT, &self.endpoint);
 
@@ -565,6 +595,8 @@ impl Server {
             title: None,
             renamed: false,
             stage: Stage::Inbox,
+            color: None,
+            archived: false,
         };
         let s = Arc::new(Session {
             info: Mutex::new(info.clone()),

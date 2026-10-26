@@ -3,12 +3,14 @@ import { t, type Key } from "../lib/i18n";
 import type { SessionInfo, Stage } from "../lib/ipc";
 import { displayName, STAGES, statusView } from "../lib/sessions";
 import { ago } from "../lib/text";
+import { sessionMenu } from "../state/menus";
 import * as sessions from "../state/sessions";
-import { notify, now, setCenterView } from "../state/ui";
+import { notify, now, openDiff, setCenterView } from "../state/ui";
 
 /**
  * Sessions of this workspace by stage. Keys: h/l (or ←/→) pick a column,
- * j/k a card, H/L (or Shift+←/→) move the card, Enter opens it, Esc leaves.
+ * j/k a card, H/L (or Shift+←/→) move the card, Enter opens it, d shows its
+ * diff, Esc leaves.
  * Cards can also be dragged between columns.
  */
 export function Kanban() {
@@ -61,6 +63,9 @@ export function Kanban() {
     else if (k === "Enter") {
       const s = selected();
       if (s) void sessions.focusSession(s.id);
+    } else if (k === "d") {
+      const s = selected();
+      if (s) openDiff(s.id);
     } else return;
     e.preventDefault();
     e.stopPropagation();
@@ -98,7 +103,9 @@ export function Kanban() {
                   return (
                     <button
                       class="kanban-card"
-                      classList={{ selected: c() === col() && r() === row() }}
+                      classList={{ selected: c() === col() && r() === row(), colored: !!s.color }}
+                      style={s.color ? { "--sc": `var(--sc-${s.color})` } : undefined}
+                      onContextMenu={(e) => sessionMenu(e, s)}
                       draggable={true}
                       tabindex={-1}
                       title={s.worktree ?? s.cwd}

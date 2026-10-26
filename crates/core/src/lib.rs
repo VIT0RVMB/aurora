@@ -7,6 +7,7 @@ mod error;
 mod fs;
 pub mod git;
 mod index;
+pub mod open;
 mod paths;
 mod search;
 pub mod session;

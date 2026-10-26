@@ -1,10 +1,32 @@
 import { createEffect, createMemo, createSignal, For, on, onCleanup, onMount, Show } from "solid-js";
+import { t } from "../lib/i18n";
+import { MARK_GLYPH } from "../lib/marks";
 import { flattenTree, parentPath } from "../lib/tree";
+import { marks } from "../state/changes";
+import { fileMenu } from "../state/menus";
 import { openFile } from "../state/editor";
 import { treeFocus } from "../state/ui";
 import { select, setExpanded, tree, workspace } from "../state/workspace";
 
 const OVERSCAN = 10;
+
+/** What sessions changed here: `+ ~ −` on files, `•` on folders holding some. */
+function TreeMark(p: { path: string; dir: boolean }) {
+  const file = () => (p.dir ? undefined : marks().files.get(p.path));
+  const names = () => (p.dir ? marks().dirs.get(p.path) : file()?.sessions);
+  return (
+    <Show when={names()}>
+      {(n) => (
+        <span
+          class={`tree-mark ${file()?.kind ?? "dir"}`}
+          title={t("tree.changedBy", { names: n().join(", ") })}
+        >
+          {file() ? MARK_GLYPH[file()!.kind] : "•"}
+        </span>
+      )}
+    </Show>
+  );
+}
 
 /** Virtualized tree: only the rows in view are in the DOM, so 50k files cost the same as 50. */
 export function FileTree(p: { rowH: () => number }) {
@@ -114,6 +136,7 @@ export function FileTree(p: { rowH: () => number }) {
         tabIndex={0}
         onScroll={() => setScrollTop(scroller.scrollTop)}
         onKeyDown={onKeyDown}
+        onContextMenu={(e) => fileMenu(e, null)}
       >
         <div style={{ height: `${rows().length * p.rowH()}px`, position: "relative" }}>
           <For each={visible()}>
@@ -123,6 +146,10 @@ export function FileTree(p: { rowH: () => number }) {
                 classList={{ selected: row.entry.path === tree.selected, dir: row.entry.isDir }}
                 style={{ top: `${index * p.rowH()}px`, "padding-left": `calc(${row.depth * 2 + 1} * var(--cell-w))` }}
                 onClick={() => activateRow(index)}
+                onContextMenu={(e) => {
+                  select(row.entry.path);
+                  fileMenu(e, row.entry);
+                }}
                 title={row.entry.path}
               >
                 <span class="tree-glyph">{row.entry.isDir ? (row.expanded ? "▾" : "▸") : " "}</span>
@@ -130,6 +157,7 @@ export function FileTree(p: { rowH: () => number }) {
                 <Show when={row.loading}>
                   <span class="faint"> …</span>
                 </Show>
+                <TreeMark path={row.entry.path} dir={row.entry.isDir} />
               </div>
             )}
           </For>

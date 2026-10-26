@@ -18,7 +18,7 @@ All keyboard-driven, vim style.
 | Problem | How Aurora solves it |
 | --- | --- |
 | Closing the terminal or the app kills the agent | A daemon (`aurora-sessiond`) owns the PTYs. The app connects and disconnects; the session and its history stay there. |
-| You can't tell which agent needs you | Claude and Codex hooks notify the daemon. Sessions waiting for you are listed first and highlighted. |
+| You can't tell which agent needs you | Claude Code hooks and an opencode plugin notify the daemon; other agents report running or exited from the process. Sessions waiting for you are listed first and highlighted. |
 | Several agents in the same repository get in each other's way | `:session new claude --worktree fix-login` creates an isolated worktree and branch for the session. |
 | Tabs with generic names ("claude", "claude (2)") | Each session is named after the conversation topic, like in Ghostty. `:session rename` pins any name you want. |
 | IDEs are heavy and slow to open | Tauri + Rust: an app of a few MB that opens instantly and never loads the contents of every file. |
@@ -77,7 +77,7 @@ On Linux and Windows, use `Ctrl` instead of `Cmd`. Inside a terminal, `Ctrl+lett
 │ crates/core all logic: files, index,        │socket │ title from OSC 0/2      │
 │             search, git, session client     │ local └───────────▲─────────────┘
 └─────────────────────────────────────────────┘                   │ aurora-sessiond notify
-                                                       Claude / Codex hooks
+                                                       Claude hooks / opencode plugin
 ```
 
 - **`crates/core`**: all the logic, no Tauri dependency, testable on its own.

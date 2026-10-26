@@ -25,6 +25,11 @@ impl Db {
                  created_ms INTEGER NOT NULL,
                  hooks TEXT NOT NULL,
                  info TEXT NOT NULL
+             );
+             CREATE TABLE IF NOT EXISTS touched (
+                 session TEXT NOT NULL,
+                 path TEXT NOT NULL,
+                 PRIMARY KEY (session, path)
              );",
         )?;
         Ok(Db(conn))
@@ -63,7 +68,22 @@ impl Db {
 
     pub fn delete(&self, id: &str) -> rusqlite::Result<()> {
         self.0.execute("DELETE FROM sessions WHERE id = ?1", params![id])?;
+        self.0.execute("DELETE FROM touched WHERE session = ?1", params![id])?;
         Ok(())
+    }
+
+    /// Records files a session's agent wrote; repeats are ignored.
+    pub fn add_touched(&self, id: &str, paths: &[String]) -> rusqlite::Result<()> {
+        let mut st = self.0.prepare("INSERT OR IGNORE INTO touched (session, path) VALUES (?1, ?2)")?;
+        for p in paths {
+            st.execute(params![id, p])?;
+        }
+        Ok(())
+    }
+
+    pub fn touched(&self, id: &str) -> rusqlite::Result<Vec<String>> {
+        let mut st = self.0.prepare("SELECT path FROM touched WHERE session = ?1 ORDER BY path")?;
+        st.query_map(params![id], |r| r.get(0))?.collect()
     }
 }
 
@@ -89,7 +109,22 @@ mod tests {
             title: None,
             renamed: false,
             stage: Default::default(),
+            color: None,
+            archived: false,
         }
+    }
+
+    #[test]
+    fn touched_files_are_a_set_per_session() {
+        let dir = tempfile::tempdir().unwrap();
+        let db = Db::open(&dir.path().join("s.db")).unwrap();
+        db.add_touched("a", &["/w/b.rs".into(), "/w/a.rs".into()]).unwrap();
+        db.add_touched("a", &["/w/a.rs".into()]).unwrap();
+        db.add_touched("b", &["/w/c.rs".into()]).unwrap();
+        assert_eq!(db.touched("a").unwrap(), ["/w/a.rs", "/w/b.rs"]);
+        db.delete("a").unwrap();
+        assert!(db.touched("a").unwrap().is_empty());
+        assert_eq!(db.touched("b").unwrap(), ["/w/c.rs"]);
     }
 
     #[test]

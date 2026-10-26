@@ -15,8 +15,13 @@ pub enum Hooks {
     /// Claude Code: `--settings` with hooks for prompt submit and tool use
     /// (running), questions and permission requests (waiting) and `Stop` (done).
     Claude,
-    /// Codex: `-c notify=[...]`, called on `agent-turn-complete` only.
+    /// Rows saved when Codex got `-c notify=[...]`. Any `-c` drops Codex out
+    /// of its shared background server (with a warning), so Codex now runs
+    /// unwired; the variant stays so old rows still load.
     Codex,
+    /// opencode: a plugin in a config folder of ours (`OPENCODE_CONFIG_DIR`),
+    /// fed by its event bus (busy, idle, permission asked).
+    Opencode,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -33,7 +38,7 @@ pub const KNOWN: &[&str] = &["claude", "codex", "opencode", "gemini", "shell"];
 pub fn resolve(agent: &str, extra: &[String]) -> Launch {
     let (program, mut args, hooks) = match agent {
         "claude" => ("claude".to_string(), vec![], Hooks::Claude),
-        "codex" => ("codex".to_string(), vec![], Hooks::Codex),
+        "opencode" => ("opencode".to_string(), vec![], Hooks::Opencode),
         "shell" => (default_shell(), shell_args(), Hooks::None),
         other => (other.to_string(), vec![], Hooks::None),
     };
@@ -60,14 +65,11 @@ fn shell_args() -> Vec<String> {
 pub fn command_line(program: &str, args: &[String], hooks: Hooks, notify_exe: &Path) -> Vec<String> {
     let mut argv = vec![program.to_string()];
     match hooks {
-        Hooks::None => {}
+        // opencode is wired through its environment (`OPENCODE_CONFIG_DIR`).
+        Hooks::None | Hooks::Codex | Hooks::Opencode => {}
         Hooks::Claude => {
             argv.push("--settings".into());
             argv.push(claude_settings(notify_exe));
-        }
-        Hooks::Codex => {
-            argv.push("-c".into());
-            argv.push(codex_notify(notify_exe));
         }
     }
     argv.extend(args.iter().cloned());
@@ -90,7 +92,8 @@ pub fn claude_settings(notify_exe: &Path) -> String {
     serde_json::json!({
         "hooks": {
             "UserPromptSubmit": cmd("running"),
-            "PostToolUse": matching("*", "running"),
+            // The payload names the file a writing tool touched (the tree marks).
+            "PostToolUse": matching("*", "running --stdin"),
             // The agent asks you something, or wants a permission.
             "PreToolUse": matching("AskUserQuestion", "waiting"),
             "PermissionRequest": cmd("waiting"),
@@ -103,25 +106,55 @@ pub fn claude_settings(notify_exe: &Path) -> String {
     .to_string()
 }
 
-/// `notify=[...]` as a TOML array; Codex appends its JSON payload as the last argument.
-pub fn codex_notify(notify_exe: &Path) -> String {
-    let items = [notify_exe.to_string_lossy().into_owned(), "notify".into(), "--event".into(), "done".into()];
-    let list: Vec<String> = items.iter().map(|s| toml_string(s)).collect();
-    format!("notify=[{}]", list.join(","))
-}
+/// Env var opencode reads for an extra config folder, merged over the
+/// user's own; its `plugins/` load like `.opencode/plugins/`.
+pub const OPENCODE_CONFIG_DIR: &str = "OPENCODE_CONFIG_DIR";
 
-fn toml_string(s: &str) -> String {
-    let mut out = String::from("\"");
-    for c in s.chars() {
-        match c {
-            '"' => out.push_str("\\\""),
-            '\\' => out.push_str("\\\\"),
-            c if c.is_control() => out.push_str(&format!("\\u{:04X}", c as u32)),
-            c => out.push(c),
-        }
-    }
-    out.push('"');
-    out
+/// The opencode plugin that reports status. A turn can run subagents in
+/// child sessions, so it is done only when no session of the process is
+/// busy. Notify failures are swallowed like the other agents' hooks.
+pub fn opencode_plugin(notify_exe: &Path) -> String {
+    let exe = serde_json::to_string(&notify_exe.to_string_lossy()).expect("string serializes");
+    format!(
+        r#"// Written by Aurora; rewritten whenever its daemon starts a session.
+const EXE = {exe};
+
+export const AuroraStatus = async ({{ $ }}) => {{
+  const busy = new Set();
+  const notify = (event) => $`${{EXE}} notify --event ${{event}}`.quiet().nothrow();
+  return {{
+    event: async ({{ event }}) => {{
+      const p = event.properties ?? {{}};
+      switch (event.type) {{
+        case "session.status":
+          if (p.status?.type === "busy") {{
+            const was = busy.size;
+            busy.add(p.sessionID);
+            if (was === 0) await notify("running");
+          }}
+          break;
+        case "session.idle":
+          busy.delete(p.sessionID);
+          if (busy.size === 0) await notify("done");
+          break;
+        case "permission.asked":
+        case "permission.updated":
+        case "question.asked":
+          await notify("waiting");
+          break;
+        case "file.edited":
+          if (p.file) await $`${{EXE}} notify --event running --file ${{p.file}}`.quiet().nothrow();
+          break;
+        case "permission.replied":
+        case "question.replied":
+          await notify("running");
+          break;
+      }}
+    }},
+  }};
+}};
+"#
+    )
 }
 
 /// Quotes a path for the shell that runs hook commands (sh on Unix, Git Bash
@@ -155,13 +188,17 @@ mod tests {
         let stop = v["hooks"]["Stop"][0]["hooks"][0]["command"].as_str().unwrap();
         assert_eq!(stop, "'/opt/My App/sessiond' notify --event done >/dev/null 2>&1 || true");
         assert_eq!(v["hooks"]["PostToolUse"][0]["matcher"], "*");
+        assert!(v["hooks"]["PostToolUse"][0]["hooks"][0]["command"].as_str().unwrap().contains("--stdin"));
         assert_eq!(v["hooks"]["Notification"][0]["matcher"], "permission_prompt|elicitation_dialog");
     }
 
     #[test]
-    fn codex_notify_is_valid_toml_array() {
-        let s = codex_notify(Path::new(r#"C:\Program Files\a"b\sessiond.exe"#));
-        assert_eq!(s, r#"notify=["C:\\Program Files\\a\"b\\sessiond.exe","notify","--event","done"]"#);
+    fn opencode_plugin_embeds_a_js_string() {
+        assert_eq!(resolve("opencode", &[]).hooks, Hooks::Opencode);
+        assert_eq!(command_line("opencode", &[], Hooks::Opencode, Path::new("/x")), ["opencode"]);
+        let js = opencode_plugin(Path::new(r#"C:\a"b\sessiond.exe"#));
+        assert!(js.contains(r#"const EXE = "C:\\a\"b\\sessiond.exe";"#), "{js}");
+        assert!(js.contains("${EXE} notify --event ${event}"));
     }
 
     #[test]

@@ -141,10 +141,43 @@ pub async fn session_set_stage(app: AppHandle, id: String, stage: Stage) -> CmdR
     with_client(app, move |c| c.set_stage(&id, stage)).await
 }
 
+/// Label color (one of `session::COLORS`), or none.
+#[tauri::command]
+pub async fn session_set_color(app: AppHandle, id: String, color: Option<String>) -> CmdResult<SessionInfo> {
+    with_client(app, move |c| c.set_color(&id, color.as_deref())).await
+}
+
+#[tauri::command]
+pub async fn session_set_archived(app: AppHandle, id: String, archived: bool) -> CmdResult<SessionInfo> {
+    with_client(app, move |c| c.set_archived(&id, archived)).await
+}
+
 /// Whether removing the session's worktree would discard uncommitted work.
 #[tauri::command]
 pub async fn session_worktree_dirty(app: AppHandle, id: String) -> CmdResult<bool> {
     with_client(app, move |c| session::worktree_dirty(&find(&c, &id)?)).await
+}
+
+/// Files the session changed, for its diff and the tree marks.
+#[tauri::command]
+pub async fn session_changes(app: AppHandle, id: String) -> CmdResult<session::changes::SessionChanges> {
+    with_client(app, move |c| {
+        let info = find(&c, &id)?;
+        // A daemon from before touched files were tracked: git alone.
+        let touched = c.touched(&id).unwrap_or_default();
+        session::changes::changes(&info, &touched)
+    })
+    .await
+}
+
+/// Both sides of one file in the session's diff.
+#[tauri::command]
+pub async fn session_file_diff(
+    app: AppHandle,
+    id: String,
+    path: String,
+) -> CmdResult<session::changes::FileDiff> {
+    with_client(app, move |c| session::changes::file_diff(&find(&c, &id)?, &path)).await
 }
 
 /// Forgets the session (killing it if alive); optionally removes its worktree.

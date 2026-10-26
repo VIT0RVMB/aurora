@@ -11,6 +11,40 @@ const files: Record<string, string> = {
   "ui/src/App.tsx": 'export function App() {\n  return <div class="app">aurora</div>;\n}\n',
   "ui/src/main.tsx": 'import { render } from "solid-js/web";\nrender(() => <App />, document.body);\n',
 };
+files["docs/rich.md"] = [
+  "# Rich markdown",
+  "",
+  "Some **bold**, *italic*, `code`, ~~gone~~ and a [link to notes](notes.md#second) or [[notes|wiki link]].",
+  "",
+  "## Tasks",
+  "",
+  "- [x] parse with lezer",
+  "- [ ] render tables",
+  "- plain bullet",
+  "  - nested bullet",
+  "",
+  "> A quote from an agent.",
+  "",
+  "| file | status | lines |",
+  "|:-----|:------:|------:|",
+  "| a.rs | added | 120 |",
+  "| b.ts | changed | 8 |",
+  "",
+  "```ts",
+  "const answer: number = 42; // highlighted",
+  "```",
+  "",
+  "```mermaid",
+  "graph LR; agent-->worktree; worktree-->review",
+  "```",
+  "",
+  "---",
+  "",
+  "![logo](logo.svg)",
+  "",
+].join("\n");
+files["docs/notes.md"] = "# Notes\n\nfirst\n\n## Second\n\nhere\n";
+files["docs/logo.svg"] = '<svg xmlns="http://www.w3.org/2000/svg" width="120" height="40"><rect width="120" height="40" fill="#c96"/><text x="10" y="26" font-family="monospace">aurora</text></svg>';
 for (let i = 0; i < 300; i++) files[`fixtures/many/file${String(i).padStart(3, "0")}.txt`] = `linha ${i}\n`;
 
 // ~5 MB file to check that big buffers open without freezing the UI.
@@ -335,6 +369,12 @@ export function installMock() {
       case "write_file":
         files[a.path] = a.content;
         return { mtimeMs: (mtimes[a.path] = now()), size: a.content.length };
+      case "read_image":
+        return a.path in files && a.path.endsWith(".svg")
+          ? `data:image/svg+xml;base64,${btoa(files[a.path])}`
+          : null;
+      case "open_url":
+        return null;
       case "stat_file":
         return { mtimeMs: mtimes[a.path] ?? now(), size: files[a.path]?.length ?? 0 };
       case "fuzzy_find":
@@ -363,6 +403,55 @@ export function installMock() {
         void emit("session-update", s.info);
         return null;
       }
+      case "session_set_color":
+      case "session_set_archived": {
+        const s = sessions.get(a.id)!;
+        s.info = cmd === "session_set_color" ? { ...s.info, color: a.color } : { ...s.info, archived: a.archived };
+        void emit("session-update", s.info);
+        return s.info;
+      }
+      case "trash_path": {
+        for (const p of Object.keys(files)) if (p === a.path || p.startsWith(`${a.path}/`)) delete files[p];
+        void emit("fs-change", { changed: [a.path], dirs: [], rescan: true });
+        return null;
+      }
+      case "file_history":
+        return [
+          { hash: "c3c3c3c3", short: "c3c3c3c", author: "Ana", timeMs: now() - 3600e3, subject: "say hi in English", path: a.path },
+          { hash: "b2b2b2b2", short: "b2b2b2b", author: "Vitor", timeMs: now() - 86400e3 * 3, subject: "add hello", path: a.path },
+        ];
+      case "commit_diff":
+        return a.hash.startsWith("c")
+          ? { old: files[a.path] ?? "", new: (files[a.path] ?? "").replace("olá", "hello") }
+          : { old: null, new: files[a.path] ?? "" };
+      case "worktrees":
+        return [
+          { path: "/mock/aurora", branch: "main", main: true, changed: 3 },
+          ...[...sessions.values()]
+            .filter((x) => x.info.worktree)
+            .map((x) => ({ path: x.info.worktree, branch: x.info.branch, main: false, changed: 0 })),
+          { path: "/mock/aurora.worktrees/spike", branch: "spike", main: false, changed: 1 },
+        ];
+      case "share_link":
+        return `https://github.com/me/aurora/blob/main/${a.path}`;
+      case "create_file": {
+        if (a.path in files) throw { kind: "exists", message: "already exists", detail: a.path };
+        files[a.path] = "";
+        const dir = a.path.includes("/") ? a.path.slice(0, a.path.lastIndexOf("/")) : "";
+        void emit("fs-change", { changed: [a.path], dirs: [dir], rescan: false });
+        return { mtimeMs: now(), size: 0 };
+      }
+      case "rename_path": {
+        if (a.to in files) throw { kind: "exists", message: "already exists", detail: a.to };
+        for (const p of Object.keys(files)) {
+          if (p === a.from || p.startsWith(`${a.from}/`)) {
+            files[a.to + p.slice(a.from.length)] = files[p];
+            delete files[p];
+          }
+        }
+        void emit("fs-change", { changed: [a.from, a.to], dirs: [], rescan: true });
+        return null;
+      }
       case "session_set_stage": {
         const s = sessions.get(a.id)!;
         s.info = { ...s.info, stage: a.stage };
@@ -382,6 +471,27 @@ export function installMock() {
         if (!t) throw { kind: "bad_theme", message: `tema: tema não encontrado: ${a.id}` };
         return t;
       }
+      case "session_changes": {
+        const wt = sessions.get(a.id)?.info.worktree;
+        return {
+          root: wt ?? "/mock/aurora",
+          base: "3588855aa1b2c3d4",
+          files: wt
+            ? [
+                { path: "crates/core/src/lib.rs", kind: "modified", wsPath: "crates/core/src/lib.rs" },
+                { path: "crates/core/src/diff.rs", kind: "added", wsPath: "crates/core/src/diff.rs" },
+                { path: "Cargo.toml", kind: "deleted", wsPath: "Cargo.toml" },
+              ]
+            : [{ path: "README.md", kind: "modified", wsPath: "README.md" }],
+        };
+      }
+      case "session_file_diff":
+        if (a.path === "crates/core/src/diff.rs") return { old: null, new: "pub fn diff() -> usize {\n    0\n}\n" };
+        if (a.path === "Cargo.toml") return { old: files["Cargo.toml"], new: null };
+        return {
+          old: files[a.path] ?? "",
+          new: (files[a.path] ?? "").replace("olá", "oi").replace("terminal", "terminal e agentes") + "\n// new line from the agent\n",
+        };
       case "session_worktree_dirty":
         return a.id.endsWith("2");
       case "session_remove":

@@ -85,6 +85,20 @@ export function setFontSize(size: number) {
 /** Bumped on every font change; terminals and cell measurements follow it. */
 export const fontKey = () => `${fontFamily() ?? ""}|${fontSize()}`;
 
+// ── terminal scrolling ─────────────────────────────────────────────────────
+
+export const SCROLL_MIN = 1;
+export const SCROLL_MAX = 15;
+/** Lines a wheel notch (or trackpad step) scrolls in terminals. */
+const [termScroll, setTermScrollSignal] = createSignal<number>(load("termScroll", 3));
+export { termScroll };
+
+export function setTermScroll(n: number) {
+  const v = Math.min(SCROLL_MAX, Math.max(SCROLL_MIN, Math.round(n)));
+  setTermScrollSignal(v);
+  save("termScroll", v);
+}
+
 // ── window background ──────────────────────────────────────────────────────
 
 export const BG_OPACITY_MIN = 30;

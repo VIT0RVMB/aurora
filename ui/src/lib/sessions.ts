@@ -1,6 +1,6 @@
 // Pure helpers for agent sessions: `:session` argument parsing, target lookup
 // and how a status is shown. No IPC here, so it is unit-tested.
-import type { SessionInfo, Stage } from "./ipc";
+import { SESSION_COLORS, type SessionInfo, type Stage } from "./ipc";
 import { t } from "./i18n";
 
 export type SessionCommand =
@@ -10,9 +10,25 @@ export type SessionCommand =
   | { sub: "rm"; target?: string }
   | { sub: "focus"; target: string }
   | { sub: "stage"; stage: Stage; target?: string }
+  | { sub: "diff"; target?: string }
+  | { sub: "archive"; target?: string }
+  | { sub: "unarchive"; target?: string }
+  | { sub: "color"; color: string | null; target?: string }
   | { sub: "list" };
 
-export const SUBCOMMANDS = ["new", "kill", "rename", "rm", "focus", "stage", "list"] as const;
+export const SUBCOMMANDS = [
+  "new",
+  "kill",
+  "rename",
+  "rm",
+  "focus",
+  "stage",
+  "diff",
+  "color",
+  "archive",
+  "unarchive",
+  "list",
+] as const;
 export const STAGES: Stage[] = ["inbox", "planning", "implementing", "validating", "complete"];
 
 /** A stage by name or unique prefix (`impl`, `val`). */
@@ -31,6 +47,7 @@ const ALIASES: Record<string, (typeof SUBCOMMANDS)[number]> = {
   go: "focus",
   ls: "list",
   st: "stage",
+  d: "diff",
 };
 
 /** `:session new claude --worktree fix-login -- --model opus` and friends. */
@@ -78,6 +95,16 @@ export function parseSessionCommand(args: string[]): SessionCommand | { error: s
       const stage = rest[0] ? parseStage(rest[0]) : null;
       if (!stage) return { error: t("sess.usageStage") };
       return { sub: "stage", stage, target: rest[1] };
+    }
+    case "diff":
+      return { sub: "diff", target: rest[0] };
+    case "archive":
+    case "unarchive":
+      return { sub, target: rest[0] };
+    case "color": {
+      const c = rest[0]?.toLowerCase();
+      if (!c || (c !== "none" && !SESSION_COLORS.includes(c))) return { error: t("sess.usageColor") };
+      return { sub: "color", color: c === "none" ? null : c, target: rest[1] };
     }
     case "list":
       return { sub: "list" };

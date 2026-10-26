@@ -3,6 +3,7 @@
 //! protocol, the client, where the socket lives and how a session is prepared.
 
 pub mod agents;
+pub mod changes;
 pub mod client;
 pub mod proto;
 pub mod transport;
@@ -17,7 +18,7 @@ use std::{
 use serde::Deserialize;
 
 pub use client::{Client, ClientEvent, OutputSink};
-pub use proto::{AgentEvent, CreateSpec, SessionInfo, Stage, Status};
+pub use proto::{AgentEvent, COLORS, CreateSpec, SessionInfo, Stage, Status};
 
 use crate::{Error, Result, git};
 
@@ -78,6 +79,21 @@ pub fn stable_helper(data_dir: &Path, exe: &Path) -> PathBuf {
             exe.to_path_buf()
         }
     }
+}
+
+/// The config folder handed to opencode sessions (`OPENCODE_CONFIG_DIR`),
+/// holding only Aurora's status plugin. The plugin is rewritten when its
+/// text changes, so it always points at the current helper. `None` when it
+/// can't be written; the session then runs without status hooks.
+pub fn opencode_config_dir(data_dir: &Path, notify_exe: &Path) -> Option<PathBuf> {
+    let dir = data_dir.join("agents").join("opencode");
+    let file = dir.join("plugins").join("aurora-status.js");
+    let text = agents::opencode_plugin(notify_exe);
+    if std::fs::read_to_string(&file).ok().as_deref() != Some(text.as_str()) {
+        std::fs::create_dir_all(file.parent()?).ok()?;
+        std::fs::write(&file, text).ok()?;
+    }
+    Some(dir)
 }
 
 /// Unix socket path, or named pipe name on Windows, for a data folder.
@@ -272,6 +288,16 @@ pub fn remove_worktree(info: &SessionInfo, force: bool) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn opencode_config_dir_writes_the_plugin_once() {
+        let tmp = tempfile::tempdir().unwrap();
+        let dir = opencode_config_dir(tmp.path(), Path::new("/bin/helper")).unwrap();
+        let file = dir.join("plugins/aurora-status.js");
+        assert!(std::fs::read_to_string(&file).unwrap().contains(r#"const EXE = "/bin/helper";"#));
+        opencode_config_dir(tmp.path(), Path::new("/bin/other")).unwrap();
+        assert!(std::fs::read_to_string(&file).unwrap().contains("/bin/other"));
+    }
 
     #[test]
     fn stable_helper_copies_and_refreshes() {

@@ -24,6 +24,9 @@ use crate::{Error, Result};
 
 const CALL_TIMEOUT: Duration = Duration::from_secs(10);
 
+// One event per daemon broadcast, moved straight into a callback: boxing the
+// common variant would only add an allocation.
+#[allow(clippy::large_enum_variant)]
 pub enum ClientEvent {
     Updated(SessionInfo),
     Removed(String),
@@ -203,13 +206,31 @@ impl Client {
         self.call(Request::SetStage { session: session.to_string(), stage })
     }
 
+    pub fn set_color(&self, session: &str, color: Option<&str>) -> Result<SessionInfo> {
+        self.call(Request::SetColor { session: session.to_string(), color: color.map(str::to_string) })
+    }
+
+    pub fn set_archived(&self, session: &str, archived: bool) -> Result<SessionInfo> {
+        self.call(Request::SetArchived { session: session.to_string(), archived })
+    }
+
     pub fn remove(&self, session: &str) -> Result<()> {
         self.sinks.lock().remove(session);
         self.call(Request::Remove { session: session.to_string() })
     }
 
     pub fn notify(&self, session: &str, event: AgentEvent) -> Result<()> {
-        self.call(Request::Notify { session: session.to_string(), event })
+        self.notify_files(session, event, vec![])
+    }
+
+    /// An event that also reports files the agent wrote (absolute paths).
+    pub fn notify_files(&self, session: &str, event: AgentEvent, files: Vec<String>) -> Result<()> {
+        self.call(Request::Notify { session: session.to_string(), event, files })
+    }
+
+    /// Files the session's hooks reported writing, absolute.
+    pub fn touched(&self, session: &str) -> Result<Vec<String>> {
+        self.call(Request::Touched { session: session.to_string() })
     }
 
     pub fn shutdown(&self) -> Result<()> {

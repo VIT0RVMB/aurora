@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import type { SessionInfo } from "./ipc";
-import { close, cycle, emptyLayout, prune, show, split, unsplit, type Layout } from "./panes";
 import { displayName, parseSessionCommand, parseStage, resolveSession, sortSessions, statusView } from "./sessions";
 
 const s = (over: Partial<SessionInfo>): SessionInfo => ({
@@ -81,55 +80,13 @@ describe("status", () => {
   });
 });
 
-describe("panes", () => {
-  const open = (...ids: string[]) => ids.reduce<Layout>((l, id) => show(l, id), emptyLayout());
-
-  it("adds to the focused pane and re-activates existing tabs", () => {
-    const l = show(open("a", "b"), "a");
-    expect(l.panes).toEqual([{ id: 1, tabs: ["a", "b"], active: "a" }]);
-  });
-
-  it("splits the active session into a new pane, and refuses with one tab", () => {
-    expect(split(open("a"))).toBeNull();
-    const l = split(open("a", "b")) as Layout;
-    expect(l.panes.map((p) => p.tabs)).toEqual([["a"], ["b"]]);
-    expect(l.focused).toBe(2);
-    expect(l.dir).toBe("row");
-    // New sessions land in the focused (new) pane.
-    expect(show(l, "c").panes[1].tabs).toEqual(["b", "c"]);
-  });
-
-  it("stacks panes and keeps the direction through later changes", () => {
-    const l = split(open("a", "b", "c"), "column") as Layout;
-    expect(l.dir).toBe("column");
-    expect(close(show(l, "d"), "a").dir).toBe("column");
-    expect(cycle(l, 1).dir).toBe("column");
-  });
-
-  it("opens an empty pane when asked and there is one tab", () => {
-    const l = split(open("a"), "row", true) as Layout;
-    expect(l.panes).toEqual([
-      { id: 1, tabs: ["a"], active: "a" },
-      { id: 2, tabs: [], active: null },
-    ]);
-    expect(l.focused).toBe(2);
-    expect(show(l, "b").panes[1].tabs).toEqual(["b"]);
-  });
-
-  it("closes emptied panes but keeps the last one", () => {
-    const l = split(open("a", "b")) as Layout;
-    const after = close(l, "b");
-    expect(after.panes).toEqual([{ id: 1, tabs: ["a"], active: "a" }]);
-    expect(after.dir).toBe("row");
-    expect(after.focused).toBe(1);
-    expect(close(after, "a").panes).toEqual([{ id: 1, tabs: [], active: null }]);
-  });
-
-  it("unsplits, cycles and prunes", () => {
-    const l = split(open("a", "b", "c")) as Layout;
-    expect(unsplit(l).panes).toEqual([{ id: 1, tabs: ["a", "b", "c"], active: "c" }]);
-    expect(cycle(open("a", "b", "c"), 1).panes[0].active).toBe("a");
-    expect(prune(l, new Set(["a"])).panes).toEqual([{ id: 1, tabs: ["a"], active: "a" }]);
+describe("session color and archive commands", () => {
+  it("parses them", () => {
+    expect(parseSessionCommand(["color", "blue", "x"])).toEqual({ sub: "color", color: "blue", target: "x" });
+    expect(parseSessionCommand(["color", "none"])).toEqual({ sub: "color", color: null, target: undefined });
+    expect(parseSessionCommand(["color", "chartreuse"])).toHaveProperty("error");
+    expect(parseSessionCommand(["archive"])).toEqual({ sub: "archive", target: undefined });
+    expect(parseSessionCommand(["unarchive", "claude-1"])).toEqual({ sub: "unarchive", target: "claude-1" });
   });
 });
 

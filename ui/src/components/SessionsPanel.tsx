@@ -2,6 +2,7 @@ import { createSignal, For, Show } from "solid-js";
 import { modLabel } from "../lib/platform";
 import { displayName, statusView } from "../lib/sessions";
 import { ago, shortPath } from "../lib/text";
+import { sessionMenu } from "../state/menus";
 import * as sessions from "../state/sessions";
 import { now } from "../state/ui";
 import { t } from "../lib/i18n";
@@ -9,12 +10,18 @@ import { t } from "../lib/i18n";
 /** Sessions of the open workspace: status first, then who and where. */
 export function SessionsPanel() {
   const [cursor, setCursor] = createSignal(0);
-  const list = sessions.here;
-  const others = () => sessions.all.length - list().length;
+  // Archived sessions are not listed; the header switches to them.
+  const [showArchived, setShowArchived] = createSignal(false);
+  const viewingArchived = () => showArchived() && sessions.archived().length > 0;
+  const list = () => (viewingArchived() ? sessions.archived() : sessions.here());
+  const others = () => sessions.all.length - sessions.here().length - sessions.archived().length;
 
   const open = (i: number) => {
     const s = list()[i];
-    if (s) void sessions.focusSession(s.id);
+    if (!s) return;
+    if (!s.archived) return void sessions.focusSession(s.id);
+    // Opening an archived one brings it back.
+    void sessions.setArchived(s, false).then((err) => (err ? undefined : sessions.focusSession(s.id)));
   };
 
   const onKey = (e: KeyboardEvent) => {
@@ -29,6 +36,25 @@ export function SessionsPanel() {
 
   return (
     <section class="sessions">
+      <Show when={sessions.archived().length > 0}>
+        <div class="sessions-head">
+          <button
+            class="sessions-head-btn"
+            classList={{ on: !viewingArchived() }}
+            onClick={() => (setShowArchived(false), setCursor(0))}
+          >
+            {t("sessions.active", { n: sessions.here().length })}
+          </button>
+          <button
+            class="sessions-head-btn"
+            classList={{ on: viewingArchived() }}
+            title={t("sessions.unarchiveHint")}
+            onClick={() => (setShowArchived(true), setCursor(0))}
+          >
+            {t("sessions.archivedTitle", { n: sessions.archived().length })}
+          </button>
+        </div>
+      </Show>
       <div class="sessions-list" tabindex="0" onKeyDown={onKey}>
         <For each={list()}>
           {(s, i) => {
@@ -37,10 +63,14 @@ export function SessionsPanel() {
               <button
                 class="session-row"
                 classList={{
+                  archived: !!s.archived,
                   selected: i() === cursor(),
                   active: s.id === sessions.activeSession(),
                   ended: !s.alive,
+                  colored: !!s.color,
                 }}
+                style={s.color ? { "--sc": `var(--sc-${s.color})` } : undefined}
+                onContextMenu={(e) => sessionMenu(e, s)}
                 onClick={() => {
                   setCursor(i());
                   open(i());
@@ -68,7 +98,7 @@ export function SessionsPanel() {
             );
           }}
         </For>
-        <Show when={list().length === 0}>
+        <Show when={list().length === 0 && !viewingArchived()}>
           <div class="sessions-empty">
             <Show when={sessions.connected() !== false} fallback={<span class="danger">{t("sessions.unavailable")}</span>}>
               <span class="dim">{t("sessions.none")}</span>

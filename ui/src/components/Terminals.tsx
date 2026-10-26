@@ -3,16 +3,18 @@ import { modLabel } from "../lib/platform";
 import { displayName, statusView } from "../lib/sessions";
 import * as sessions from "../state/sessions";
 import { t } from "../lib/i18n";
+import { startTabDrag } from "../state/drag";
+import { sessionMenu } from "../state/menus";
+import { SplitArea } from "./SplitArea";
 import { TabStrip } from "./TabStrip";
 import { shortPath } from "../lib/text";
 
 /** The terminal area: panes side by side or stacked, each with its own session tabs. */
 export function Terminals() {
-  const ids = createMemo(() => sessions.layout().panes.map((p) => p.id));
   return (
-    <section class="terms" classList={{ stacked: sessions.layout().dir === "column" }}>
-      <For each={ids()}>{(id) => <TerminalPane id={id} />}</For>
-    </section>
+    <SplitArea class="terms" layout={sessions.layout()} onResize={sessions.resizePanes}>
+      {(id) => <TerminalPane id={id} />}
+    </SplitArea>
   );
 }
 
@@ -57,8 +59,10 @@ function TerminalPane(p: { id: number }) {
       }}
       onFocusOut={() => sessions.setFocusedTerm(null)}
       onMouseDown={() => sessions.focusPane(p.id)}
+      data-drop-pane={p.id}
+      data-kind="session"
     >
-      <TabStrip>
+      <TabStrip pane={p.id} kind="session">
         <For each={pane()?.tabs ?? []}>
           {(id, i) => {
             const info = () => sessions.byId(id);
@@ -71,13 +75,26 @@ function TerminalPane(p: { id: number }) {
                 class="tab"
                 role="tab"
                 aria-selected={id === active()}
-                classList={{ active: id === active(), ended: info() ? !info()!.alive : true }}
+                classList={{ active: id === active(), ended: info() ? !info()!.alive : true, colored: !!info()?.color }}
+                style={info()?.color ? { "--sc": `var(--sc-${info()!.color})` } : undefined}
+                onContextMenu={(e) => {
+                  const s = info();
+                  if (s) sessionMenu(e, s);
+                }}
                 title={info() ? `${info()!.name} · ${info()!.agent} · ${info()!.cwd} · ${view().label}` : id}
                 onMouseDown={(e) => {
                   e.stopPropagation();
                   if (e.button === 1) sessions.hideTab(id);
                   else sessions.activateTab(p.id, id);
                 }}
+                onPointerDown={(e) =>
+                  startTabDrag(e, {
+                    kind: "session",
+                    label: info() ? displayName(info()!) : id,
+                    canDrop: (t) => sessions.canDropTab(id, t),
+                    onDrop: (t) => sessions.dropTab(id, t),
+                  })
+                }
               >
                 <span class="tab-num">{String(i() + 1).padStart(2, "0")}</span>
                 <span class={view().tone}>{view().glyph}</span>

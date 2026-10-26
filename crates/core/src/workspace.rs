@@ -10,7 +10,9 @@ use parking_lot::{Mutex, RwLock};
 
 use crate::{
     DirEntry, Error, FileContent, FileStat, FsBatch, FuzzyMatch, Result, SearchOptions, SearchResults, fs,
-    index, paths, search, tree,
+    git, index, paths, search,
+    session::changes::FileDiff,
+    tree,
     watch::{self, WatchHandle},
 };
 
@@ -69,6 +71,103 @@ impl Workspace {
 
     pub fn write_file(&self, rel: &str, content: &str) -> Result<FileStat> {
         fs::write_text(&paths::resolve(&self.root, rel)?, content)
+    }
+
+    /// An image in the workspace as a `data:` URL; `None` if it is not one.
+    pub fn read_image(&self, rel: &str) -> Result<Option<String>> {
+        fs::read_image(&paths::resolve(&self.root, rel)?)
+    }
+
+    /// Creates an empty file (and any missing folders on the way); refuses to overwrite.
+    pub fn create_file(&self, rel: &str) -> Result<FileStat> {
+        let path = paths::resolve(&self.root, rel)?;
+        if rel.trim_matches('/').is_empty() {
+            return Err(Error::BadName(rel.to_string()));
+        }
+        if let Some(dir) = path.parent() {
+            std::fs::create_dir_all(dir)?;
+        }
+        match std::fs::OpenOptions::new().write(true).create_new(true).open(&path) {
+            Ok(_) => fs::stat(&path),
+            Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => Err(Error::Exists(rel.to_string())),
+            Err(e) => Err(e.into()),
+        }
+    }
+
+    /// Renames or moves a file or folder inside the workspace; refuses to overwrite.
+    pub fn rename(&self, from: &str, to: &str) -> Result<()> {
+        let src = paths::resolve(&self.root, from)?;
+        let dst = paths::resolve(&self.root, to)?;
+        if from.trim_matches('/').is_empty() || to.trim_matches('/').is_empty() {
+            return Err(Error::BadName(to.to_string()));
+        }
+        std::fs::symlink_metadata(&src)?;
+        // A case-only rename on a case-insensitive disk sees the target "exist".
+        let same_file = from.eq_ignore_ascii_case(to) && from != to;
+        if !same_file && std::fs::symlink_metadata(&dst).is_ok() {
+            return Err(Error::Exists(to.to_string()));
+        }
+        if let Some(dir) = dst.parent() {
+            std::fs::create_dir_all(dir)?;
+        }
+        std::fs::rename(&src, &dst)?;
+        Ok(())
+    }
+
+    /// Moves a file or folder to the system trash, where it can be restored.
+    pub fn trash(&self, rel: &str) -> Result<()> {
+        if rel.trim_matches('/').is_empty() {
+            return Err(Error::BadName(rel.to_string()));
+        }
+        let path = paths::resolve(&self.root, rel)?;
+        std::fs::symlink_metadata(&path)?;
+        trash::delete(&path).map_err(|e| Error::Io(std::io::Error::other(e.to_string())))
+    }
+
+    /// The absolute path of a workspace path, for the system's own tools.
+    pub fn absolute(&self, rel: &str) -> Result<PathBuf> {
+        paths::resolve(&self.root, rel)
+    }
+
+    /// The repository holding the workspace, and `rel` relative to it.
+    fn in_repo(&self, rel: &str) -> Result<(PathBuf, String)> {
+        paths::resolve(&self.root, rel)?;
+        let repo =
+            git::repo_root(&self.root).ok_or_else(|| Error::NotRepo(self.root.display().to_string()))?;
+        let repo = repo.canonicalize().unwrap_or(repo);
+        let root = self.root.canonicalize().unwrap_or_else(|_| self.root.clone());
+        let prefix = paths::to_rel(&repo, &root).unwrap_or_default();
+        let path = if prefix.is_empty() { rel.to_string() } else { format!("{prefix}/{rel}") };
+        Ok((repo, path))
+    }
+
+    /// The repository's worktrees and how many files each has changed.
+    pub fn worktrees(&self) -> Result<Vec<git::WorktreeStatus>> {
+        git::worktree_statuses(&self.root)
+    }
+
+    /// Commits that changed a file, newest first.
+    pub fn history(&self, rel: &str) -> Result<Vec<git::Commit>> {
+        let (repo, path) = self.in_repo(rel)?;
+        git::file_history(&repo, &path, 200)
+    }
+
+    /// What one commit did to a file: its parent's version and its own.
+    /// `path` is the file's repo-relative path in that commit (`Commit::path`).
+    pub fn commit_diff(&self, hash: &str, path: &str) -> Result<FileDiff> {
+        if !hash.chars().all(|c| c.is_ascii_hexdigit()) || hash.is_empty() {
+            return Err(Error::BadName(hash.to_string()));
+        }
+        let (repo, _) = self.in_repo("")?;
+        let old = git::show(&repo, &format!("{hash}^"), path)?;
+        let new = git::show(&repo, hash, path)?;
+        Ok(FileDiff { old, new })
+    }
+
+    /// A link to the file on the repository's web host.
+    pub fn share_link(&self, rel: &str) -> Result<String> {
+        let (repo, path) = self.in_repo(rel)?;
+        git::share_link(&repo, &path)
     }
 
     pub fn stat(&self, rel: &str) -> Result<FileStat> {
@@ -138,6 +237,31 @@ fn dunce_canonicalize(p: &Path) -> Result<PathBuf> {
 mod tests {
     use super::*;
     use std::fs as stdfs;
+
+    #[test]
+    fn create_and_rename() {
+        let dir = tempfile::tempdir().unwrap();
+        let ws = Workspace::open(dir.path()).unwrap();
+        ws.create_file("notes/new.md").unwrap();
+        assert!(dir.path().join("notes/new.md").is_file());
+        assert!(matches!(ws.create_file("notes/new.md"), Err(Error::Exists(_))));
+        assert!(matches!(ws.create_file("../x.md"), Err(Error::OutsideRoot(_))));
+
+        ws.write_file("notes/other.md", "x").unwrap();
+        assert!(matches!(ws.rename("notes/new.md", "notes/other.md"), Err(Error::Exists(_))));
+        ws.rename("notes/new.md", "docs/moved.md").unwrap();
+        assert!(dir.path().join("docs/moved.md").is_file());
+        ws.rename("docs/moved.md", "docs/Moved.md").unwrap();
+        assert!(ws.list_dir("docs").unwrap().iter().any(|e| e.name == "Moved.md"));
+        ws.rename("docs", "papers").unwrap();
+        assert!(dir.path().join("papers/Moved.md").is_file());
+        assert!(ws.rename("nope.md", "x.md").is_err());
+        assert!(matches!(ws.rename("papers", "../out"), Err(Error::OutsideRoot(_))));
+        // Not exercised for real: it would fill the user's trash on every run.
+        assert!(matches!(ws.trash(""), Err(Error::BadName(_))));
+        assert!(matches!(ws.trash("../x"), Err(Error::OutsideRoot(_))));
+        assert!(ws.trash("nope.md").is_err());
+    }
 
     #[test]
     fn end_to_end_without_ui() {

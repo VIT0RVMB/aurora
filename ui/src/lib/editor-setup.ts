@@ -10,7 +10,7 @@ import {
 } from "@codemirror/language";
 import { languages } from "@codemirror/language-data";
 import { highlightSelectionMatches, search, searchKeymap } from "@codemirror/search";
-import { Compartment, EditorState } from "@codemirror/state";
+import { Compartment, EditorState, type Extension } from "@codemirror/state";
 import {
   crosshairCursor,
   drawSelection,
@@ -25,12 +25,16 @@ import {
 } from "@codemirror/view";
 import { tags as t } from "@lezer/highlight";
 import { vim } from "@replit/codemirror-vim";
+import { markdownLinks, markdownSupport, richMarkdown, type RichOptions } from "./markdown-rich";
 
 /** Per-state slot for the language, filled in asynchronously after load. */
 export const languageSlot = new Compartment();
 /** Vim keybindings, toggled with `:vim`. */
 export const vimSlot = new Compartment();
 export const vimExtension = () => vim({ status: false });
+/** Rich markdown (markup hidden, blocks rendered), toggled with `:rich`. */
+export const richSlot = new Compartment();
+export const richExtension = (): Extension => [richMarkdown(), EditorView.lineWrapping];
 
 // Colors come from CSS tokens, so switching theme needs no reconfigure.
 const highlight = HighlightStyle.define([
@@ -94,6 +98,8 @@ export interface StateOptions {
   crlf: boolean;
   onChange: () => void;
   onCursor: (line: number, col: number) => void;
+  /** A markdown file: its language, links and (when `rich`) rendering come with the state. */
+  markdown?: { rich: boolean; links: RichOptions };
 }
 
 export function createEditorState(o: StateOptions): EditorState {
@@ -120,7 +126,9 @@ export function createEditorState(o: StateOptions): EditorState {
       search({ top: false }),
       keymap.of([...defaultKeymap, ...historyKeymap, ...searchKeymap, ...foldKeymap, indentWithTab]),
       terminalTheme,
-      languageSlot.of([]),
+      o.markdown ? markdownLinks(o.markdown.links) : [],
+      richSlot.of(o.markdown?.rich ? richExtension() : []),
+      languageSlot.of(o.markdown ? markdownSupport() : []),
       o.crlf ? EditorState.lineSeparator.of("\r\n") : [],
       EditorView.updateListener.of((u) => {
         if (u.docChanged) o.onChange();
@@ -132,6 +140,20 @@ export function createEditorState(o: StateOptions): EditorState {
       }),
     ],
   });
+}
+
+/** A read-only view with the editor's look (the diff). The language goes in `languageSlot`. */
+export function viewerExtensions(): Extension[] {
+  return [
+    lineNumbers(),
+    highlightSpecialChars(),
+    drawSelection(),
+    syntaxHighlighting(highlight),
+    terminalTheme,
+    EditorState.readOnly.of(true),
+    EditorView.editable.of(false),
+    languageSlot.of([]),
+  ];
 }
 
 export function languageFor(path: string): LanguageDescription | null {

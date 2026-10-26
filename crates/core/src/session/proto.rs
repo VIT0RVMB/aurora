@@ -157,7 +157,16 @@ pub struct SessionInfo {
     /// Kanban column. Absent in rows saved by older builds: inbox.
     #[serde(default)]
     pub stage: Stage,
+    /// Label color for telling sessions apart, one of [`COLORS`].
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub color: Option<String>,
+    /// Put away: out of tabs, lists and the board, still kept (and running if alive).
+    #[serde(default)]
+    pub archived: bool,
 }
+
+/// Session label colors, by name so every theme draws them in its own palette.
+pub const COLORS: &[&str] = &["red", "orange", "yellow", "green", "cyan", "blue", "purple", "gray"];
 
 /// Everything `sessiond` needs to start a session. Built by the core from the
 /// agent registry; the daemon only adds hook wiring it alone can resolve.
@@ -212,6 +221,15 @@ pub enum Request {
         session: String,
         stage: Stage,
     },
+    /// `None` clears the label color.
+    SetColor {
+        session: String,
+        color: Option<String>,
+    },
+    SetArchived {
+        session: String,
+        archived: bool,
+    },
     /// Kills if alive, then forgets the session and its history.
     Remove {
         session: String,
@@ -219,6 +237,13 @@ pub enum Request {
     Notify {
         session: String,
         event: AgentEvent,
+        /// Files the agent just wrote (absolute paths), from its hook.
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        files: Vec<String>,
+    },
+    /// Every file the session's hooks reported writing, absolute, sorted.
+    Touched {
+        session: String,
     },
     Shutdown,
 }
@@ -301,6 +326,9 @@ mod tests {
         let req: Request =
             serde_json::from_str(r#"{"op":"set_stage","session":"a","stage":"validating"}"#).unwrap();
         assert_eq!(req, Request::SetStage { session: "a".into(), stage: Stage::Validating });
+        // A notify from an older helper carries no files.
+        let req: Request = serde_json::from_str(r#"{"op":"notify","session":"a","event":"done"}"#).unwrap();
+        assert_eq!(req, Request::Notify { session: "a".into(), event: AgentEvent::Done, files: vec![] });
     }
 
     #[test]

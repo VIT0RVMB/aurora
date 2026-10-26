@@ -5,6 +5,9 @@ import { parentPath } from "../lib/tree";
 import {
   activate,
   attachView,
+  canDropTab,
+  dropTab,
+  resizeGroups,
   closeTab,
   detachView,
   focusGroup,
@@ -17,8 +20,12 @@ import {
 import { t } from "../lib/i18n";
 import { modLabel } from "../lib/platform";
 import { Home } from "./Home";
+import { Diff } from "./Diff";
+import { History } from "./History";
 import { Kanban } from "./Kanban";
 import { centerView } from "../state/ui";
+import { startTabDrag } from "../state/drag";
+import { SplitArea } from "./SplitArea";
 import { TabStrip } from "./TabStrip";
 
 /** Tab label; adds the parent folder when two open files share a name. */
@@ -31,21 +38,27 @@ function label(tab: Tab, all: Tab[]): string {
 export function Editor() {
   /** Files when any is open and no view was asked for; else home or the board. */
   const shown = () => (centerView() !== "auto" ? centerView() : tabs.length > 0 ? "file" : "home");
-  const ids = createMemo(() => groups().panes.map((g) => g.id));
-
   return (
     <section class="editor">
-      <div
+      <SplitArea
         class="editor-groups"
-        classList={{ hidden: shown() !== "file", stacked: groups().dir === "column" }}
+        classList={{ hidden: shown() !== "file" }}
+        layout={groups()}
+        onResize={resizeGroups}
       >
-        <For each={ids()}>{(id) => <EditorGroup id={id} />}</For>
-      </div>
+        {(id) => <EditorGroup id={id} />}
+      </SplitArea>
       <Show when={shown() === "home"}>
         <Home />
       </Show>
       <Show when={shown() === "kanban"}>
         <Kanban />
+      </Show>
+      <Show when={shown() === "diff"}>
+        <Diff />
+      </Show>
+      <Show when={shown() === "history"}>
+        <History />
       </Show>
     </section>
   );
@@ -72,9 +85,11 @@ function EditorGroup(p: { id: number }) {
       classList={{ focused: focused() && multi(), dimmed: multi() && !focused() }}
       onFocusIn={() => focusGroup(p.id)}
       onMouseDown={() => focusGroup(p.id)}
+      data-drop-pane={p.id}
+      data-kind="editor"
     >
       <Show when={groupTabs().length > 0}>
-        <TabStrip>
+        <TabStrip pane={p.id} kind="editor">
           <For each={groupTabs()}>
             {(tab, i) => (
               <div
@@ -87,6 +102,14 @@ function EditorGroup(p: { id: number }) {
                   if (e.button === 1) closeTab(tab.path);
                   else activate(tab.path);
                 }}
+                onPointerDown={(e) =>
+                  startTabDrag(e, {
+                    kind: "editor",
+                    label: tab.name,
+                    canDrop: (t) => canDropTab(tab.path, t),
+                    onDrop: (t) => dropTab(tab.path, t),
+                  })
+                }
                 title={tab.path}
               >
                 <span class="tab-num">{String(i() + 1).padStart(2, "0")}</span>

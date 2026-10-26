@@ -97,9 +97,10 @@ fn root_ignore(root: &Path) -> Gitignore {
 }
 
 fn is_ignored(ig: &Gitignore, abs: &Path) -> bool {
-    // The path may already be gone, so treat it as a file; directory rules
-    // still match through its parents.
-    ig.matched_path_or_any_parents(abs, false).is_ignore()
+    // The path may already be gone; then it counts as a file, and directory
+    // rules still match through its parents. Linux reports events on an
+    // ignored directory itself (`build`), which only `is_dir` catches.
+    ig.matched_path_or_any_parents(abs, abs.is_dir()).is_ignore()
 }
 
 fn is_hidden_from_tree(rel: &str) -> bool {

@@ -1,11 +1,13 @@
-import { createEffect, createResource, For, Show, type JSX } from "solid-js";
+import { createEffect, createResource, For, on, onCleanup, Show, type JSX } from "solid-js";
 import { locale, t } from "../lib/i18n";
-import { core, type SessionInfo } from "../lib/ipc";
+import { core, type SessionInfo, type WorktreeStatus } from "../lib/ipc";
 import { modLabel } from "../lib/platform";
-import { displayName, statusView } from "../lib/sessions";
+import { displayName, sameFolder, statusView } from "../lib/sessions";
 import { ago, shortPath } from "../lib/text";
 import { baseName, parentPath } from "../lib/tree";
 import { openFile, recentFiles } from "../state/editor";
+import { sessionMenu } from "../state/menus";
+import { fsTick } from "../state/changes";
 import * as sessions from "../state/sessions";
 import { now, openPalette, setPrefsOpen, setSearchFocus, showRight } from "../state/ui";
 import { workspace } from "../state/workspace";
@@ -25,12 +27,32 @@ function Box(p: { title: JSX.Element; count?: number; children: JSX.Element }) {
 }
 
 /** One list line: glyph, name, then meta and age pushed to the right. */
-function Row(p: { glyph: JSX.Element; name: string; meta?: JSX.Element; age?: string; title?: string; onOpen: () => void }) {
+function Row(p: {
+  glyph: JSX.Element;
+  name: string;
+  meta?: JSX.Element;
+  age?: string;
+  title?: string;
+  color?: string | null;
+  /** The meta is what matters (a count): it never gets cut. */
+  keepMeta?: boolean;
+  onOpen: () => void;
+  onMenu?: (e: MouseEvent) => void;
+}) {
   return (
-    <button class="home-row" title={p.title} onClick={p.onOpen}>
+    <button
+      class="home-row"
+      classList={{ colored: !!p.color }}
+      style={p.color ? { "--sc": `var(--sc-${p.color})` } : undefined}
+      title={p.title}
+      onClick={p.onOpen}
+      onContextMenu={p.onMenu}
+    >
       <span class="home-glyph">{p.glyph}</span>
       <span class="home-name">{p.name}</span>
-      <span class="home-meta">{p.meta}</span>
+      <span class="home-meta" classList={{ keep: p.keepMeta }}>
+        {p.meta}
+      </span>
       <span class="home-age">{p.age}</span>
     </button>
   );
@@ -53,7 +75,9 @@ function SessionRow(p: { s: SessionInfo }) {
         </>
       }
       age={ago(p.s.updatedMs, now())}
+      color={p.s.color}
       onOpen={() => void sessions.focusSession(p.s.id)}
+      onMenu={(e) => sessionMenu(e, p.s)}
     />
   );
 }
@@ -66,24 +90,34 @@ export function Home() {
   const live = () => sessions.here().filter((s) => s.alive);
   const waiting = () => live().filter((s) => s.status === "waiting");
   const running = () => live().filter((s) => s.status !== "waiting");
-  const withWorktree = () => sessions.here().filter((s) => s.worktree);
-
-  // Dirty flags for worktrees, refreshed whenever the set of sessions changes.
-  const [dirty, { refetch }] = createResource(
-    () => withWorktree().map((s) => s.id).join(","),
-    async (ids) => {
-      const out = new Map<string, boolean>();
-      for (const id of ids.split(",").filter(Boolean)) {
-        out.set(id, await core.sessionWorktreeDirty(id).catch(() => false));
-      }
-      return out;
-    },
+  // Every worktree of the repository, sessions' or yours, with what is uncommitted in it.
+  const [trees, { refetch }] = createResource(
+    () => workspace()?.root,
+    () => core.worktrees().catch(() => null),
   );
-  createEffect(() => {
-    // Statuses changing usually means files changed too.
-    sessions.waiting();
-    void refetch();
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  createEffect(
+    on(
+      // Agents writing (status, activity) and files changing by hand both change counts.
+      () => [sessions.here().map((s) => `${s.id}:${s.status}:${s.updatedMs}`).join(), fsTick()],
+      () => {
+        clearTimeout(timer);
+        timer = setTimeout(() => void refetch(), 500);
+      },
+      { defer: true },
+    ),
+  );
+  // Worktrees live outside the watched folder: coming back to the window (after
+  // editing elsewhere) is the other moment they may have changed.
+  const onWindowFocus = () => void refetch();
+  window.addEventListener("focus", onWindowFocus);
+  onCleanup(() => {
+    clearTimeout(timer);
+    window.removeEventListener("focus", onWindowFocus);
   });
+  /** Sessions working in a worktree: its owners, or for the main checkout those without one. */
+  const users = (w: WorktreeStatus) =>
+    sessions.here().filter((s) => (w.main ? !s.worktree && sameFolder(s.cwd, w.path) : !!s.worktree && sameFolder(s.worktree, w.path)));
 
   const today = () =>
     new Intl.DateTimeFormat(locale(), { weekday: "long", month: "long", day: "numeric" }).format(new Date(now()));
@@ -154,22 +188,47 @@ export function Home() {
                 )}
               </For>
             </Box>
-            <Box title={t("home.worktrees")} count={withWorktree().length}>
-              <For each={withWorktree()} fallback={<div class="home-empty">{t("home.noWorktrees")}</div>}>
-                {(s) => (
-                  <Row
-                    glyph={<span class={dirty()?.get(s.id) ? "warn" : "faint"}>⎇</span>}
-                    name={s.branch ?? shortPath(s.worktree!)}
-                    title={s.worktree!}
-                    meta={
-                      <span class={dirty()?.get(s.id) ? "warn" : "faint"}>
-                        {dirty()?.get(s.id) ? t("home.dirty") : t("home.clean")}
-                      </span>
-                    }
-                    age={displayName(s) !== s.branch ? displayName(s) : undefined}
-                    onOpen={() => void sessions.focusSession(s.id)}
-                  />
-                )}
+            <Box title={t("home.worktrees")} count={trees()?.length ?? 0}>
+              <For
+                each={trees() ?? []}
+                fallback={<div class="home-empty">{trees() === null ? t("home.notRepo") : t("home.noWorktrees")}</div>}
+              >
+                {(w) => {
+                  const who = () => users(w);
+                  const tone = () => (w.changed == null ? "danger" : w.changed > 0 ? "warn" : "faint");
+                  return (
+                    <Row
+                      glyph={<span class={tone()}>⎇</span>}
+                      name={w.main ? `${w.branch || "HEAD"} · ${t("home.mainCheckout")}` : w.branch || shortPath(w.path)}
+                      title={[w.path, ...who().map(displayName)].join("\n")}
+                      keepMeta
+                      meta={
+                        <span class={tone()}>
+                          {w.changed == null
+                            ? t("home.missing")
+                            : w.changed > 0
+                              ? t("home.changedN", { n: w.changed })
+                              : t("home.clean")}
+                        </span>
+                      }
+                      age={
+                        who().length > 1
+                          ? t("home.sessionsN", { n: who().length })
+                          : who().length
+                            ? displayName(who()[0])
+                            : w.main
+                              ? undefined
+                              : t("home.manual")
+                      }
+                      color={who()[0]?.color}
+                      onOpen={() => {
+                        const s = who()[0];
+                        if (s) void sessions.focusSession(s.id);
+                      }}
+                      onMenu={who()[0] ? (e) => sessionMenu(e, who()[0]) : undefined}
+                    />
+                  );
+                }}
               </For>
             </Box>
           </div>

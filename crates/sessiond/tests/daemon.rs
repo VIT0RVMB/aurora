@@ -179,6 +179,33 @@ fn notify_and_kill() {
     daemon.join().unwrap().unwrap();
 }
 
+#[test]
+fn hooks_report_touched_files() {
+    let dir = tempfile::tempdir().unwrap();
+    let daemon = start(dir.path());
+    let c = connect(dir.path());
+
+    let script = r#"echo '{"cwd":"/w","tool_name":"Edit","tool_input":{"file_path":"src/a.rs"}}' | "$HELPER" notify --event running --stdin
+echo '{"tool_name":"Bash","tool_input":{"command":"ls"}}' | "$HELPER" notify --event running --stdin
+"$HELPER" notify --event running --file /x/b.rs --file /x/b.rs
+echo reported; exec cat"#;
+    let info = c.client.create(sh("touch", script)).unwrap();
+    let out = attach(&c.client, &info.id);
+    wait_for(&out, "reported");
+    let deadline = Instant::now() + Duration::from_secs(5);
+    let mut touched = c.client.touched(&info.id).unwrap();
+    while touched.len() < 2 && Instant::now() < deadline {
+        std::thread::sleep(Duration::from_millis(20));
+        touched = c.client.touched(&info.id).unwrap();
+    }
+    assert_eq!(touched, ["/w/src/a.rs", "/x/b.rs"]);
+
+    c.client.remove(&info.id).unwrap();
+    assert!(c.client.touched(&info.id).is_err());
+    c.client.shutdown().unwrap();
+    daemon.join().unwrap().unwrap();
+}
+
 /// Phase 2 acceptance: five sessions, the "app" goes away and comes back,
 /// every session is there with its history. Then the daemon itself restarts
 /// and the history survives on disk.
@@ -220,6 +247,11 @@ fn five_sessions_survive_reconnect_and_restart() {
     assert_eq!(staged.stage, Stage::Validating);
     assert_eq!(staged.updated_ms, before);
 
+    // Color and archive are metadata too.
+    assert_eq!(c.client.set_color(&ids[3], Some("purple")).unwrap().color.as_deref(), Some("purple"));
+    assert!(c.client.set_color(&ids[3], Some("chartreuse")).is_err());
+    assert!(c.client.set_archived(&ids[4], true).unwrap().archived);
+
     // A second daemon for the same folder refuses to start.
     assert!(matches!(start(dir.path()).join().unwrap(), Err(ServeError::AlreadyRunning)));
 
@@ -234,6 +266,9 @@ fn five_sessions_survive_reconnect_and_restart() {
     assert!(list.iter().all(|s| !s.alive && s.status == Status::Done));
     let stages: Vec<_> = ids.iter().map(|id| list.iter().find(|s| &s.id == id).unwrap().stage).collect();
     assert_eq!(stages, [Stage::Inbox, Stage::Validating, Stage::Inbox, Stage::Inbox, Stage::Inbox]);
+    let by = |id: &String| list.iter().find(|s| &s.id == id).unwrap();
+    assert_eq!(by(&ids[3]).color.as_deref(), Some("purple"));
+    assert!(by(&ids[4]).archived && !by(&ids[3]).archived);
     let out = attach(&c.client, &ids[2]);
     wait_for(&out, "s2-line3");
     c.client.shutdown().unwrap();

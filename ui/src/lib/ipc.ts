@@ -85,6 +85,54 @@ export interface SessionInfo {
   /** Explicitly renamed: the name wins over the title. */
   renamed: boolean;
   stage: Stage;
+  /** Label color, one of `SESSION_COLORS`; absent from older daemons. */
+  color?: string | null;
+  /** Put away: out of tabs, lists and the board. */
+  archived?: boolean;
+}
+
+/** Session label colors (`core::session::COLORS`), drawn from the theme's palette. */
+export const SESSION_COLORS = ["red", "orange", "yellow", "green", "cyan", "blue", "purple", "gray"];
+
+export type ChangeKind = "added" | "modified" | "deleted";
+
+export interface SessionChange {
+  /** Relative to `SessionChanges.root`; what `sessionFileDiff` takes. */
+  path: string;
+  kind: ChangeKind;
+  /** The same file in the workspace, when it is inside it. */
+  wsPath: string | null;
+}
+
+export interface SessionChanges {
+  root: string;
+  base: string | null;
+  files: SessionChange[];
+}
+
+export interface Commit {
+  hash: string;
+  short: string;
+  author: string;
+  timeMs: number;
+  subject: string;
+  /** The file's repo-relative path in that commit (renames are followed). */
+  path: string;
+}
+
+export interface FileDiff {
+  old: string | null;
+  new: string | null;
+}
+
+export interface WorktreeStatus {
+  path: string;
+  /** Empty when HEAD is detached. */
+  branch: string;
+  /** The repository's own checkout. */
+  main: boolean;
+  /** Files with uncommitted or untracked changes; null when its folder is gone. */
+  changed: number | null;
 }
 
 export interface NewSession {
@@ -141,6 +189,26 @@ export const core = {
   readFile: (path: string) => invoke<FileContent>("read_file", { path }),
   writeFile: (path: string, content: string) => invoke<FileStat>("write_file", { path, content }),
   statFile: (path: string) => invoke<FileStat>("stat_file", { path }),
+  /** An empty file; missing folders are created, an existing file is refused. */
+  createFile: (path: string) => invoke<FileStat>("create_file", { path }),
+  /** Renames or moves a file or folder; an existing target is refused. */
+  renamePath: (from: string, to: string) => invoke<void>("rename_path", { from, to }),
+  /** In the system's default app for the file. */
+  openPath: (path: string) => invoke<void>("open_path", { path }),
+  /** In Finder / Explorer / the file manager. */
+  revealPath: (path: string) => invoke<void>("reveal_path", { path }),
+  /** To the system trash, where it can be restored. */
+  trashPath: (path: string) => invoke<void>("trash_path", { path }),
+  fileHistory: (path: string) => invoke<Commit[]>("file_history", { path }),
+  commitDiff: (hash: string, path: string) => invoke<FileDiff>("commit_diff", { hash, path }),
+  /** The file's page on the repository's web host. */
+  shareLink: (path: string) => invoke<string>("share_link", { path }),
+  /** Every worktree of the workspace's repository, main checkout first, with changed-file counts. */
+  worktrees: () => invoke<WorktreeStatus[]>("worktrees"),
+  /** A workspace image as a `data:` URL; null if the file is not an image. */
+  readImage: (path: string) => invoke<string | null>("read_image", { path }),
+  /** Opens an http(s) or mailto link in the system's handler. */
+  openUrl: (url: string) => invoke<void>("open_url", { url }),
   fuzzyFind: (query: string, limit = 50) => invoke<FuzzyMatch[]>("fuzzy_find", { query, limit }),
   searchText: (query: string, options: SearchOptions) =>
     invoke<SearchResults>("search_text", { query, options }),
@@ -161,9 +229,14 @@ export const core = {
   sessionKill: (id: string) => invoke<void>("session_kill", { id }),
   sessionRename: (id: string, name: string) => invoke<SessionInfo>("session_rename", { id, name }),
   sessionSetStage: (id: string, stage: Stage) => invoke<SessionInfo>("session_set_stage", { id, stage }),
+  sessionSetColor: (id: string, color: string | null) => invoke<SessionInfo>("session_set_color", { id, color }),
+  sessionSetArchived: (id: string, archived: boolean) =>
+    invoke<SessionInfo>("session_set_archived", { id, archived }),
   sessionWorktreeDirty: (id: string) => invoke<boolean>("session_worktree_dirty", { id }),
   sessionRemove: (id: string, removeWorktree: boolean, force: boolean) =>
     invoke<void>("session_remove", { id, removeWorktree, force }),
+  sessionChanges: (id: string) => invoke<SessionChanges>("session_changes", { id }),
+  sessionFileDiff: (id: string, path: string) => invoke<FileDiff>("session_file_diff", { id, path }),
   onSessionUpdate: (cb: (s: SessionInfo) => void): Promise<UnlistenFn> =>
     listen<SessionInfo>("session-update", (e) => cb(e.payload)),
   onSessionRemoved: (cb: (id: string) => void): Promise<UnlistenFn> =>

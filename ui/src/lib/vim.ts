@@ -3,7 +3,7 @@
 // handler, so it works the same in the editor, the tree and the panels.
 import { Vim } from "@replit/codemirror-vim";
 
-export const LEADER_KEYS = ["f", "p", "/", "s", "t", "e", "b", "n", "w", "q", "h", "k", "o"] as const;
+export const LEADER_KEYS = ["f", "p", "/", "s", "t", "e", "b", "n", "w", "q", "h", "k", "o", "d"] as const;
 export type LeaderKey = (typeof LEADER_KEYS)[number];
 
 let installed = false;

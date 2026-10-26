@@ -34,6 +34,8 @@ pub enum Error {
     Daemon(String),
     #[error("theme: {0}")]
     BadTheme(String),
+    #[error("already exists: {0}")]
+    Exists(String),
 }
 
 impl Error {
@@ -55,6 +57,7 @@ impl Error {
             Error::Session(_) => "session",
             Error::Daemon(_) => "daemon",
             Error::BadTheme(_) => "bad_theme",
+            Error::Exists(_) => "exists",
         }
     }
 }
@@ -75,7 +78,8 @@ impl Error {
             | Error::BadName(s)
             | Error::Session(s)
             | Error::Daemon(s)
-            | Error::BadTheme(s) => Some(s.clone()),
+            | Error::BadTheme(s)
+            | Error::Exists(s) => Some(s.clone()),
         }
     }
 }

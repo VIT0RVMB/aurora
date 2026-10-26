@@ -6,9 +6,10 @@ import * as panes from "../lib/panes";
 import { displayName, sameFolder, sortSessions } from "../lib/sessions";
 import { load, save } from "../lib/storage";
 import type { TermHandle } from "../lib/terminal";
-import { bgOpacity, fontKey } from "./prefs";
+import { bgOpacity, fontKey, termScroll } from "./prefs";
 import { theme } from "./theme";
-import { confirm, notify, setTerminalVisible, toggleTerminal } from "./ui";
+import type { DropTarget } from "./drag";
+import { confirm, dock, notify, setDock, setTerminalVisible, toggleTerminal } from "./ui";
 import { workspace } from "./workspace";
 import { t } from "../lib/i18n";
 
@@ -20,16 +21,18 @@ export const [connected, setConnected] = createSignal<boolean | null>(null);
 /** Session whose terminal has keyboard focus, if any. */
 export const [focusedTerm, setFocusedTerm] = createSignal<string | null>(null);
 
-const { here, waiting } = createRoot(() => {
-  const here = createMemo(() => {
+const { here, archived, waiting } = createRoot(() => {
+  const ofWorkspace = createMemo(() => {
     const root = workspace()?.root;
     return root ? sortSessions(all.filter((s) => sameFolder(s.workspace, root))) : [];
   });
+  const here = createMemo(() => ofWorkspace().filter((s) => !s.archived));
+  const archived = createMemo(() => ofWorkspace().filter((s) => s.archived));
   const waiting = createMemo(() => here().filter((s) => s.alive && s.status === "waiting").length);
-  return { here, waiting };
+  return { here, archived, waiting };
 });
-/** Sessions of the open workspace, the ones needing you first. */
-export { here, waiting };
+/** Sessions of the open workspace, the ones needing you first; archived ones apart. */
+export { here, archived, waiting };
 
 export const activeSession = () => panes.focusedPane(layout()).active;
 export const hasTabs = () => layout().panes.some((p) => p.tabs.length > 0);
@@ -98,6 +101,7 @@ export async function terminal(id: string): Promise<TermHandle> {
       void core.sessionResize(id, cols, rows).catch(() => {});
       attach(id, handle);
     },
+    scrollSpeed: termScroll(),
   });
   terms.set(id, handle);
   return handle;
@@ -124,6 +128,10 @@ createRoot(() => {
     fontKey();
     requestAnimationFrame(() => terms.forEach((t) => t.applyFont()));
   });
+  createEffect(() => {
+    const n = termScroll();
+    terms.forEach((t) => t.setScrollSpeed(n));
+  });
 });
 
 // ── daemon events ──────────────────────────────────────────────────────────
@@ -133,6 +141,8 @@ function upsert(info: SessionInfo) {
   const prev = i >= 0 ? all[i] : undefined;
   if (i >= 0) setAll(i, reconcile(info));
   else setAll(all.length, info);
+  // Archived (here or from another window): its tab goes away, the session stays.
+  if (info.archived && panes.paneOf(layout(), info.id)) setLayout(panes.close(layout(), info.id));
   const becameWaiting = info.alive && info.status === "waiting" && prev?.status !== "waiting";
   const looking = focusedTerm() === info.id && document.hasFocus();
   if (becameWaiting && !looking) notify(t("sess.waiting", { name: displayName(info) }), "warn", 8000);
@@ -209,7 +219,7 @@ export async function focusSession(id: string) {
 
 export function activateTab(paneId: number, id: string) {
   const l = layout();
-  setLayout({ focused: paneId, panes: l.panes.map((p) => (p.id === paneId ? { ...p, active: id } : p)) });
+  setLayout({ ...l, focused: paneId, panes: l.panes.map((p) => (p.id === paneId ? { ...p, active: id } : p)) });
   requestAnimationFrame(() => focusTerminal(id));
 }
 
@@ -244,6 +254,23 @@ export function split(dir: panes.Dir = "row"): string | void {
 
 export function unsplit() {
   setLayout(panes.unsplit(layout()));
+}
+
+/** A dragged session tab: a slot in a tab strip, or a pane's middle or edge. */
+export function canDropTab(id: string, t: DropTarget): boolean {
+  if (t.dock) return t.dock !== dock();
+  return t.index != null || panes.canDrop(layout(), id, t.pane, t.side!);
+}
+
+export function dropTab(id: string, t: DropTarget) {
+  if (t.dock) return setDock(t.dock);
+  const l = layout();
+  setLayout(t.index != null ? panes.move(l, id, t.pane, t.index) : panes.drop(l, id, t.pane, t.side!));
+  requestAnimationFrame(() => focusTerminal(id));
+}
+
+export function resizePanes(path: number[], sizes: number[]) {
+  setLayout(panes.resize(layout(), path, sizes));
 }
 
 let lastSize = { cols: 120, rows: 32 };
@@ -281,6 +308,27 @@ export async function rename(s: SessionInfo, name: string): Promise<string | voi
   } catch (e) {
     return errorMessage(e);
   }
+}
+
+/** Label color for telling sessions apart; null clears it. */
+export async function setColor(s: SessionInfo, color: string | null): Promise<string | void> {
+  upsert({ ...s, color });
+  try {
+    upsert(await core.sessionSetColor(s.id, color));
+  } catch (e) {
+    upsert(s);
+    return errorMessage(e);
+  }
+}
+
+/** Archiving takes a session out of tabs, lists and the board; it keeps running if alive. */
+export async function setArchived(s: SessionInfo, archived: boolean): Promise<string | void> {
+  try {
+    upsert(await core.sessionSetArchived(s.id, archived));
+  } catch (e) {
+    return errorMessage(e);
+  }
+  notify(t(archived ? "sess.archived" : "sess.unarchived", { name: displayName(s) }));
 }
 
 export async function setStage(s: SessionInfo, stage: Stage): Promise<string | void> {

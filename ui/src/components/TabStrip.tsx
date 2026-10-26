@@ -4,7 +4,7 @@ import { createSignal, onCleanup, onMount, Show, type JSX } from "solid-js";
  * Row of tabs that scrolls sideways; `‹` and `›` appear at the ends when some
  * tabs don't fit, and the active tab is kept in view.
  */
-export function TabStrip(p: { children: JSX.Element }) {
+export function TabStrip(p: { children: JSX.Element; pane?: number; kind?: string }) {
   let row!: HTMLDivElement;
   const [left, setLeft] = createSignal(false);
   const [right, setRight] = createSignal(false);
@@ -34,7 +34,7 @@ export function TabStrip(p: { children: JSX.Element }) {
           ‹
         </button>
       </Show>
-      <div ref={row} class="tabbar" role="tablist" onScroll={measure}>
+      <div ref={row} class="tabbar" role="tablist" onScroll={measure} data-tabs-pane={p.pane} data-kind={p.kind}>
         {p.children}
       </div>
       <Show when={right()}>

@@ -98,6 +98,79 @@ pub async fn write_file(state: State<'_, AppState>, path: String, content: Strin
 }
 
 #[tauri::command]
+pub async fn read_image(state: State<'_, AppState>, path: String) -> CmdResult<Option<String>> {
+    let ws = state.ws()?;
+    blocking(move || ws.read_image(&path)).await
+}
+
+#[tauri::command]
+pub fn open_url(url: String) -> CmdResult<()> {
+    Ok(aurora_core::open::open_url(&url)?)
+}
+
+#[tauri::command]
+pub fn create_file(state: State<'_, AppState>, path: String) -> CmdResult<FileStat> {
+    Ok(state.ws()?.create_file(&path)?)
+}
+
+#[tauri::command]
+pub fn rename_path(state: State<'_, AppState>, from: String, to: String) -> CmdResult<()> {
+    Ok(state.ws()?.rename(&from, &to)?)
+}
+
+/// Opens a workspace file in the system's default app for it.
+#[tauri::command]
+pub fn open_path(state: State<'_, AppState>, path: String) -> CmdResult<()> {
+    Ok(aurora_core::open::open_path(&state.ws()?.absolute(&path)?)?)
+}
+
+/// Shows a workspace file in Finder / Explorer / the file manager.
+#[tauri::command]
+pub fn reveal_path(state: State<'_, AppState>, path: String) -> CmdResult<()> {
+    Ok(aurora_core::open::reveal(&state.ws()?.absolute(&path)?)?)
+}
+
+/// Moves a workspace file or folder to the system trash.
+#[tauri::command]
+pub async fn trash_path(state: State<'_, AppState>, path: String) -> CmdResult<()> {
+    let ws = state.ws()?;
+    blocking(move || ws.trash(&path)).await
+}
+
+#[tauri::command]
+pub async fn file_history(
+    state: State<'_, AppState>,
+    path: String,
+) -> CmdResult<Vec<aurora_core::git::Commit>> {
+    let ws = state.ws()?;
+    blocking(move || ws.history(&path)).await
+}
+
+#[tauri::command]
+pub async fn commit_diff(
+    state: State<'_, AppState>,
+    hash: String,
+    path: String,
+) -> CmdResult<aurora_core::session::changes::FileDiff> {
+    let ws = state.ws()?;
+    blocking(move || ws.commit_diff(&hash, &path)).await
+}
+
+/// The workspace repository's worktrees (main checkout first) and their changed-file counts.
+#[tauri::command]
+pub async fn worktrees(state: State<'_, AppState>) -> CmdResult<Vec<aurora_core::git::WorktreeStatus>> {
+    let ws = state.ws()?;
+    blocking(move || ws.worktrees()).await
+}
+
+/// A link to the file on its repository's web host (GitHub, GitLab…).
+#[tauri::command]
+pub async fn share_link(state: State<'_, AppState>, path: String) -> CmdResult<String> {
+    let ws = state.ws()?;
+    blocking(move || ws.share_link(&path)).await
+}
+
+#[tauri::command]
 pub fn stat_file(state: State<'_, AppState>, path: String) -> CmdResult<FileStat> {
     Ok(state.ws()?.stat(&path)?)
 }

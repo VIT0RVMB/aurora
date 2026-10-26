@@ -3,6 +3,9 @@ import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import { createEffect, createSignal, on, onCleanup, onMount, Show } from "solid-js";
 import { Confirm } from "./components/Confirm";
 import { Editor } from "./components/Editor";
+import { DragLayer } from "./components/SplitArea";
+import { ActivityBar, SessionsBar } from "./components/ActivityBar";
+import { Overlays } from "./components/ContextMenu";
 import { FileTree } from "./components/FileTree";
 import { Palette } from "./components/Palette";
 import { Prefs } from "./components/Prefs";
@@ -14,13 +17,14 @@ import { Terminals } from "./components/Terminals";
 import { Welcome } from "./components/Welcome";
 import { measureCell } from "./lib/cells";
 import { findCommand, isOutsidePath, parseCommand, type CommandSpec } from "./lib/commands";
-import { core } from "./lib/ipc";
+import { core, SESSION_COLORS } from "./lib/ipc";
 import type { Dir } from "./lib/panes";
 import { isEditable, isMac, isMod } from "./lib/platform";
 import { displayName, parseSessionCommand, resolveSession, STAGES, SUBCOMMANDS } from "./lib/sessions";
 import { installVimKeys, LEADER_KEYS, type LeaderKey } from "./lib/vim";
 import { KNOWN_AGENTS } from "./lib/agents";
 import * as editor from "./state/editor";
+import * as changes from "./state/changes";
 import * as sessions from "./state/sessions";
 import { fontKey } from "./state/prefs";
 import { refreshThemes, setTheme, themes, themesDir } from "./state/theme";
@@ -95,10 +99,16 @@ const commands: Command[] = [
       if (before.length === 0) return [...SUBCOMMANDS];
       const sub = before[0];
       if (before.length === 1 && (sub === "new" || sub === "n")) return KNOWN_AGENTS;
-      if (before.length === 1 && ["kill", "k", "rename", "mv", "rm", "remove", "close", "focus", "f", "go"].includes(sub)) {
+      if (before.length === 1 && ["kill", "k", "rename", "mv", "rm", "remove", "close", "focus", "f", "go", "diff", "d"].includes(sub)) {
         return sessions.here().map((x) => x.name);
       }
       if (before.length >= 2 && (sub === "new" || sub === "n")) return ["--worktree", "--name", "--"];
+      if (sub === "color") {
+        if (before.length === 1) return [...SESSION_COLORS, "none"];
+        if (before.length === 2) return sessions.here().map((x) => x.name);
+      }
+      if (sub === "archive") return before.length === 1 ? sessions.here().map((x) => x.name) : [];
+      if (sub === "unarchive") return before.length === 1 ? sessions.archived().map((x) => x.name) : [];
       if (sub === "stage" || sub === "st") {
         if (before.length === 1) return STAGES.map((st) => ({ value: st, description: t(`stage.${st}` as Key) }));
         if (before.length === 2) return sessions.here().map((x) => x.name);
@@ -110,7 +120,9 @@ const commands: Command[] = [
       if ("error" in cmd) return cmd.error;
       if (cmd.sub === "list") return void ui.showRight("sessions");
       if (cmd.sub === "new") return sessions.create({ agent: cmd.agent, name: cmd.name, worktree: cmd.worktree, args: cmd.args });
-      const target = resolveSession(sessions.here(), cmd.target, sessions.activeSession());
+      // Archived sessions answer by name too (to come back, or be removed).
+      const pool = cmd.sub === "unarchive" ? sessions.archived() : [...sessions.here(), ...sessions.archived()];
+      const target = resolveSession(pool, cmd.target, sessions.activeSession());
       if (typeof target === "string") return target;
       switch (cmd.sub) {
         case "stage": {
@@ -126,7 +138,57 @@ const commands: Command[] = [
           return sessions.remove(target);
         case "focus":
           return sessions.focusSession(target.id);
+        case "diff":
+          return ui.openDiff(target.id);
+        case "color":
+          return sessions.setColor(target, cmd.color);
+        case "archive":
+          return sessions.setArchived(target, true);
+        case "unarchive":
+          return sessions.setArchived(target, false);
       }
+    },
+  },
+  {
+    name: "diff",
+    usage: "[session]",
+    get description() {
+      return t("cmd.diff.desc");
+    },
+    complete: (before) => (before.length === 0 ? sessions.here().map((x) => x.name) : []),
+    run: ([name]) => {
+      const target = resolveSession(sessions.here(), name, sessions.activeSession() ?? ui.diffSession());
+      if (typeof target === "string") return target;
+      ui.openDiff(target.id);
+    },
+  },
+  {
+    name: "dock",
+    usage: "[bottom|right|left|top]",
+    argChoices: ui.DOCKS,
+    get description() {
+      return t("cmd.dock.desc");
+    },
+    run: ([side]) => {
+      if (!side) {
+        const i = ui.DOCKS.indexOf(ui.dock());
+        return ui.setDock(ui.DOCKS[(i + 1) % ui.DOCKS.length]);
+      }
+      if (!(ui.DOCKS as string[]).includes(side)) return t("err.badDock", { side });
+      ui.setDock(side as ui.Dock);
+    },
+  },
+  {
+    name: "history",
+    aliases: ["log"],
+    usage: "[file]",
+    get description() {
+      return t("cmd.history.desc");
+    },
+    run: ([path]) => {
+      const p = path ?? editor.active();
+      if (!p) return t("err.noFile");
+      ui.openHistory(p);
     },
   },
   {
@@ -134,7 +196,7 @@ const commands: Command[] = [
     get description() {
       return t("cmd.home.desc");
     },
-    run: () => void ui.setCenterView("home"),
+    run: () => ui.goHome(),
   },
   {
     name: "kanban",
@@ -246,6 +308,15 @@ const commands: Command[] = [
     run: ([v]) => editor.setVim(v ? v === "on" : !editor.vimEnabled()),
   },
   {
+    name: "rich",
+    aliases: ["richtext", "md"],
+    argChoices: ["on", "off"],
+    get description() {
+      return t("cmd.rich.desc");
+    },
+    run: ([v]) => editor.setRich(v ? v === "on" : !editor.richEnabled()),
+  },
+  {
     name: "lang",
     aliases: ["language", "idioma"],
     usage: "[en|pt-BR]",
@@ -271,6 +342,7 @@ function split(dir: Dir): string | void {
 
 function closeCurrent(force: boolean): string | void {
   if (ui.area() === "terminal") return sessions.hideTab();
+  if (ui.closeView()) return;
   if (editor.closeEmptyGroup()) return;
   const tab = editor.activeTab();
   if (!tab) return sessions.activeSession() ? sessions.hideTab() : t("err.nothingToClose");
@@ -303,11 +375,15 @@ function leader(k: LeaderKey) {
     case "q":
       return void Promise.resolve(closeCurrent(false)).then((e) => e && ui.notify(e, "warn"));
     case "h":
-      return ui.setCenterView("home");
+      return ui.goHome();
     case "k":
       return ui.setCenterView("kanban");
     case "o":
       return ui.workArea() === "terminal" ? sessions.focusNextPane() : editor.focusNextGroup();
+    case "d": {
+      const id = sessions.activeSession() ?? sessions.here()[0]?.id;
+      return id ? ui.openDiff(id) : ui.notify(t("sess.noActive"), "warn");
+    }
   }
 }
 
@@ -359,7 +435,12 @@ export function App() {
       return;
     }
     if (mod && !e.shiftKey && k === "s") return handled(), void editor.saveFile();
-    if (mod && !e.shiftKey && k === "w") return handled(), inTerm ? sessions.hideTab() : editor.closeTab();
+    if (mod && !e.shiftKey && k === "w") {
+      handled();
+      if (inTerm) return sessions.hideTab();
+      if (!ui.closeView()) editor.closeTab();
+      return;
+    }
     if (mod && !e.shiftKey && k === "b") return handled(), ui.toggleTree();
     if (mod && e.shiftKey && k === "b") return handled(), ui.toggleRight();
     if (mod && e.shiftKey && k === "e") {
@@ -374,10 +455,14 @@ export function App() {
       handled();
       return inTerm ? sessions.cycleTab(e.shiftKey ? -1 : 1) : editor.cycleTab(e.shiftKey ? -1 : 1);
     }
-    const bare = !mod && !e.altKey && !e.ctrlKey && !ui.palette() && !ui.confirmation() && !ui.prefsOpen();
+    const bare =
+      !mod && !e.altKey && !e.ctrlKey && !ui.palette() && !ui.confirmation() && !ui.prefsOpen() && !ui.menu() && !ui.prompt();
     const free = bare && !isEditable(document.activeElement);
-    // In vim's normal mode the editor is not taking text, so the leader applies.
-    const vimNormal = bare && ui.area() === "editor" && editor.vimEnabled() && editor.vimMode() === "normal";
+    // In vim's normal mode the editor is not taking text, so the leader applies
+    // (not inside widgets that take text, such as a rich table's cells).
+    const inEditorText = document.activeElement?.classList.contains("cm-content") ?? false;
+    const vimNormal =
+      bare && inEditorText && ui.area() === "editor" && editor.vimEnabled() && editor.vimMode() === "normal";
     if (leaderPending) {
       leaderPending = false;
       if ((LEADER_KEYS as readonly string[]).includes(e.key)) return handled(), leader(e.key as LeaderKey);
@@ -405,6 +490,7 @@ export function App() {
     const unlisten = await core.onFsChange((b) => {
       ws.applyFsBatch(b);
       void editor.applyFsBatch(b);
+      changes.onFsBatch();
     });
     onCleanup(unlisten);
 
@@ -441,9 +527,12 @@ export function App() {
     void getCurrentWindow().setTitle(title).catch(() => {});
   });
 
+  // The sessions view is the terminals alone: no file tree (its setting is kept for later).
+  const showTree = () => ui.treeVisible() && ui.mode() !== "sessions";
   const columns = () =>
     [
-      ui.treeVisible() && ws.workspace() ? `calc(${ui.treeCells()} * var(--cell-w)) 1px` : "",
+      ws.workspace() ? "calc(4 * var(--cell-w))" : "",
+      showTree() && ws.workspace() ? `calc(${ui.treeCells()} * var(--cell-w)) 1px` : "",
       "minmax(0, 1fr)",
       ui.rightVisible() && ws.workspace() ? `1px calc(${ui.rightCells()} * var(--cell-w))` : "",
     ]
@@ -455,7 +544,8 @@ export function App() {
       <TitleBar />
       <Show when={ws.workspace()} fallback={<Welcome onOpen={() => void pickFolder()} />}>
         <main class="layout" style={{ "grid-template-columns": columns() }}>
-          <Show when={ui.treeVisible()}>
+          <ActivityBar />
+          <Show when={showTree()}>
             <FileTree rowH={() => cell().h} />
             <Splitter
               cells={ui.treeCells}
@@ -467,7 +557,7 @@ export function App() {
               onEnd={ui.persistSizes}
             />
           </Show>
-          <Center cellH={() => cell().h} />
+          <Center cellW={() => cell().w} cellH={() => cell().h} />
           <Show when={ui.rightVisible()}>
             <Splitter
               cells={ui.rightCells}
@@ -487,6 +577,8 @@ export function App() {
       <Show when={ui.palette()} keyed>
         <Palette commands={commands} run={runLine} />
       </Show>
+      <DragLayer />
+      <Overlays />
       <Show when={ui.prefsOpen()}>
         <Prefs />
       </Show>
@@ -497,36 +589,62 @@ export function App() {
   );
 }
 
-/** Editor on top, terminals below; either takes the whole column alone. */
-function Center(p: { cellH: () => number }) {
-  const terms = () => ui.terminalVisible() && sessions.hasTabs();
+/**
+ * Editor and terminals share the center, the terminals on whichever side
+ * `ui.dock()` says; either takes it all alone. The DOM order never changes
+ * (only grid placement), so switching sides remounts nothing.
+ */
+function Center(p: { cellW: () => number; cellH: () => number }) {
+  // Sessions mode: the terminals alone, or beside the board.
+  const sessionsMode = () => ui.mode() === "sessions";
+  const terms = () => sessionsMode() || (ui.terminalVisible() && sessions.hasTabs());
   // A view asked for (`:home`, `:kanban`) claims the editor area even with no file.
-  const edit = () => editor.tabs.length > 0 || ui.centerView() !== "auto" || !terms();
+  const edit = () =>
+    sessionsMode() ? ui.centerView() === "kanban" : editor.tabs.length > 0 || ui.centerView() !== "auto" || !terms();
   const both = () => terms() && edit();
-  const rows = () =>
-    [
+  const stacked = () => ui.dock() === "bottom" || ui.dock() === "top";
+  const termsFirst = () => ui.dock() === "top" || ui.dock() === "left";
+  const tracks = () => {
+    const size = stacked() ? `calc(${ui.terminalRows()} * var(--cell-h))` : `calc(${ui.terminalCols()} * var(--cell-w))`;
+    const list = [
       edit() ? "minmax(0, 1fr)" : "0",
       both() ? "1px" : "0",
-      terms() ? (both() ? `calc(${ui.terminalRows()} * var(--cell-h))` : "minmax(0, 1fr)") : "0",
-    ].join(" ");
+      terms() ? (both() ? size : "minmax(0, 1fr)") : "0",
+    ];
+    return (termsFirst() ? list.reverse() : list).join(" ");
+  };
+  const grid = () =>
+    stacked()
+      ? { "grid-template-rows": tracks(), "grid-template-columns": "minmax(0, 1fr)" }
+      : { "grid-template-columns": tracks(), "grid-template-rows": "minmax(0, 1fr)" };
+  /** Track 1 to 3 along the split axis; the editor is 1 and the terminals 3 unless they come first. */
+  const at = (slot: 1 | 2 | 3) => {
+    const track = String(termsFirst() ? 4 - slot : slot);
+    return stacked() ? { "grid-row": track, "grid-column": "1" } : { "grid-column": track, "grid-row": "1" };
+  };
   return (
-    <section class="center" style={{ "grid-template-rows": rows() }}>
-      <div class="center-slot" classList={{ hidden: !edit() }}>
+    <section class="center" style={grid()} data-dock-root>
+      <div class="center-slot" classList={{ hidden: !edit() }} style={at(1)} data-dock-area>
         <Editor />
       </div>
-      <Show when={both()} fallback={<div />}>
-        <Splitter
-          axis="y"
-          cells={ui.terminalRows}
-          setCells={ui.setTerminalRows}
-          cellW={p.cellH}
-          min={4}
-          max={80}
-          direction={-1}
-          onEnd={ui.persistSizes}
-        />
-      </Show>
-      <div class="center-slot" classList={{ hidden: !terms() }}>
+      <div class="center-divider" style={at(2)}>
+        <Show when={both()}>
+          <Splitter
+            axis={stacked() ? "y" : "x"}
+            cells={stacked() ? ui.terminalRows : ui.terminalCols}
+            setCells={stacked() ? ui.setTerminalRows : ui.setTerminalCols}
+            cellW={stacked() ? p.cellH : p.cellW}
+            min={stacked() ? 4 : 24}
+            max={stacked() ? 80 : 300}
+            direction={termsFirst() ? 1 : -1}
+            onEnd={ui.persistSizes}
+          />
+        </Show>
+      </div>
+      <div class="center-slot" classList={{ hidden: !terms() }} style={at(3)}>
+        <Show when={sessionsMode()}>
+          <SessionsBar />
+        </Show>
         <Terminals />
       </div>
     </section>
