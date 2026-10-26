@@ -89,6 +89,15 @@ html.translucent .box-title {
 .box.hidden {
   display: none;
 }
+/* Wrappers between a box and the surface it sits on pass that background
+   down, so titles there cut the border too (home, board, diff, history). */
+.home,
+.home-grid,
+.home-col,
+.kanban,
+.diff {
+  background: inherit;
+}
 .box-title {
   position: absolute;
   top: calc(var(--cell-h) / -2);
@@ -1505,4 +1514,9 @@ html.translucent .box-close {
 .sessions-bar-btn:hover,
 .sessions-bar-btn.on {
   color: var(--accent);
+}
+
+/* A session's line under its worktree on the home screen */
+.home-branch-glyph {
+  margin-left: var(--cell-w);
 }

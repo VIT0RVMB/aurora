@@ -7,9 +7,9 @@ import { ago, shortPath } from "../lib/text";
 import { baseName, parentPath } from "../lib/tree";
 import { openFile, recentFiles } from "../state/editor";
 import { sessionMenu } from "../state/menus";
-import { fsTick } from "../state/changes";
+import { changes, fsTick } from "../state/changes";
 import * as sessions from "../state/sessions";
-import { now, openPalette, setPrefsOpen, setSearchFocus, showRight } from "../state/ui";
+import { now, openDiff, openPalette, setPrefsOpen, setSearchFocus, showRight } from "../state/ui";
 import { workspace } from "../state/workspace";
 
 function Box(p: { title: JSX.Element; count?: number; children: JSX.Element }) {
@@ -195,38 +195,64 @@ export function Home() {
               >
                 {(w) => {
                   const who = () => users(w);
+                  // Sessions with work to review here, most files first.
+                  const changed = () =>
+                    who()
+                      .map((s) => ({ s, n: changes[s.id]?.files.length ?? 0 }))
+                      .filter((x) => x.n > 0)
+                      .sort((a, b) => b.n - a.n);
                   const tone = () => (w.changed == null ? "danger" : w.changed > 0 ? "warn" : "faint");
                   return (
-                    <Row
-                      glyph={<span class={tone()}>⎇</span>}
-                      name={w.main ? `${w.branch || "HEAD"} · ${t("home.mainCheckout")}` : w.branch || shortPath(w.path)}
-                      title={[w.path, ...who().map(displayName)].join("\n")}
-                      keepMeta
-                      meta={
-                        <span class={tone()}>
-                          {w.changed == null
-                            ? t("home.missing")
-                            : w.changed > 0
-                              ? t("home.changedN", { n: w.changed })
-                              : t("home.clean")}
-                        </span>
-                      }
-                      age={
-                        who().length > 1
-                          ? t("home.sessionsN", { n: who().length })
-                          : who().length
-                            ? displayName(who()[0])
-                            : w.main
-                              ? undefined
-                              : t("home.manual")
-                      }
-                      color={who()[0]?.color}
-                      onOpen={() => {
-                        const s = who()[0];
-                        if (s) void sessions.focusSession(s.id);
-                      }}
-                      onMenu={who()[0] ? (e) => sessionMenu(e, who()[0]) : undefined}
-                    />
+                    <>
+                      <Row
+                        glyph={<span class={tone()}>⎇</span>}
+                        name={w.main ? `${w.branch || "HEAD"} · ${t("home.mainCheckout")}` : w.branch || shortPath(w.path)}
+                        title={[w.path, ...who().map(displayName)].join("\n")}
+                        keepMeta
+                        meta={
+                          <span class={tone()}>
+                            {w.changed == null
+                              ? t("home.missing")
+                              : w.changed > 0
+                                ? t("home.changedN", { n: w.changed })
+                                : t("home.clean")}
+                          </span>
+                        }
+                        age={
+                          changed().length
+                            ? undefined
+                            : who().length > 1
+                              ? t("home.sessionsN", { n: who().length })
+                              : who().length
+                                ? displayName(who()[0])
+                                : w.main
+                                  ? undefined
+                                  : t("home.manual")
+                        }
+                        color={changed().length ? undefined : who()[0]?.color}
+                        onOpen={() => {
+                          // One session's work here: its changes; else the session itself.
+                          const only = changed().length === 1 ? changed()[0].s : null;
+                          if (only) openDiff(only.id);
+                          else if (who()[0] && !changed().length) void sessions.focusSession(who()[0].id);
+                        }}
+                        onMenu={who()[0] ? (e) => sessionMenu(e, changed()[0]?.s ?? who()[0]) : undefined}
+                      />
+                      <For each={changed()}>
+                        {({ s, n }) => (
+                          <Row
+                            glyph={<span class="faint home-branch-glyph">└</span>}
+                            name={displayName(s)}
+                            title={t("home.openChanges", { name: displayName(s) })}
+                            keepMeta
+                            meta={<span class="warn">{t("home.filesN", { n })}</span>}
+                            color={s.color}
+                            onOpen={() => openDiff(s.id)}
+                            onMenu={(e) => sessionMenu(e, s)}
+                          />
+                        )}
+                      </For>
+                    </>
                   );
                 }}
               </For>
