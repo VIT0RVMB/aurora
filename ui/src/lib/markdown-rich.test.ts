@@ -71,6 +71,18 @@ describe("rich markdown", () => {
     expect(rendered(s)).toBe("| a |<SourceBack>\n|---|\n| 1 |\n\nx");
   });
 
+  it("shows frontmatter as properties, or its source when toggled", () => {
+    const doc = "---\ntitle: x\ntags: [a]\n---\n# Body [[y]]\n\nz";
+    expect(rendered(state(doc))).toBe("<Frontmatter>\nBody y\n\nz");
+    expect(rendered(state(doc, 2))).toBe("<Frontmatter>\nBody y\n\nz");
+    let s = EditorState.create({ doc, extensions: [markdownSupport(), tableSource], selection: { anchor: doc.length } });
+    ensureSyntaxTree(s, s.doc.length, 5000);
+    s = s.update({ effects: toggleTableSource.of(0) }).state;
+    expect(rendered(s)).toBe("---<SourceBack>\ntitle: x\ntags: [a]\n---\nBody y\n\nz");
+    expect(lineClasses(s)).toContain("3:cm-md-frontmatter");
+    expect(lineClasses(s).some((c) => c.startsWith("3:cm-md-h"))).toBe(false);
+  });
+
   it("keeps code blocks as code, with the language as a label", () => {
     const doc = "```ts\nconst a = **1**;\n```\n\nx";
     expect(rendered(state(doc))).toBe("<Lang>\nconst a = **1**;\n\n\nx");

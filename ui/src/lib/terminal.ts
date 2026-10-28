@@ -52,10 +52,10 @@ export function readTheme(): ITheme {
   // A see-through window (Preferences) shows the body's tint behind the text.
   const clear = document.documentElement.classList.contains("translucent");
   return {
-    background: clear ? clearOf(v("--bg")) : v("--bg"),
+    background: clear ? clearOf(v("--bg-term")) : v("--bg-term"),
     foreground: v("--fg"),
     cursor: v("--cursor"),
-    cursorAccent: v("--bg"),
+    cursorAccent: v("--bg-term"),
     selectionBackground: v("--selection"),
     black: v("--ansi-black"),
     red: v("--ansi-red"),
@@ -84,6 +84,14 @@ export interface TermOptions {
   scrollSpeed: number;
 }
 
+/** Terminal rows are their own height, not the app's `--cell-h`. */
+const TERM_LINE_HEIGHT = 1.2;
+
+/** A key that is text of several characters (WebKit's "'s"), not a name like "Enter". */
+export function isDeadCommit(key: string): boolean {
+  return [...key].length > 1 && !/^[A-Z][A-Za-z0-9]*$/.test(key);
+}
+
 function measureAdvance(family: string): number {
   const ctx = document.createElement("canvas").getContext("2d");
   if (!ctx) return 0;
@@ -95,11 +103,11 @@ export function createTerminal(o: TermOptions): TermHandle {
   // Read from the tokens each time: preferences can change the font live.
   const font = () => {
     const base = parseFloat(cssVar("--font-size")) || 13;
-    const cellH = parseFloat(cssVar("--cell-h")) || 20;
     const fontFamily = cssVar("--font-mono") || "monospace";
     const fontSize = fittedFontSize(base, measureAdvance(fontFamily), window.devicePixelRatio || 1);
-    // Rows stay on the app's cell grid.
-    return { fontFamily, fontSize, lineHeight: cellH / fontSize };
+    // Cells near 2:1, like other terminals: agents draw pixel art with block
+    // characters (Claude Code's mascot), which the app's taller rows stretched.
+    return { fontFamily, fontSize, lineHeight: TERM_LINE_HEIGHT };
   };
   const term = new Terminal({
     ...font(),
@@ -123,6 +131,20 @@ export function createTerminal(o: TermOptions): TermHandle {
   term.unicode.activeVersion = "11";
   term.onData(o.onData);
   term.onResize(({ cols, rows }) => o.onResize(cols, rows));
+  // WebKit dead keys (Brazilian, US International): `'` then `s` commits the
+  // `'` through composition, then fires keydown with key "'s" and a keypress
+  // for `'`, which xterm sends again, and the `s` arrives as an input event
+  // xterm ignores ("let''s"). Skip that keydown/keypress and send the input.
+  let deadCommit = false;
+  term.attachCustomKeyEventHandler((ev) => {
+    if (ev.type === "keyup") deadCommit = false;
+    else if (ev.type === "keydown") deadCommit = isDeadCommit(ev.key);
+    return !deadCommit;
+  });
+  const onInput = (ev: Event) => {
+    const e = ev as InputEvent;
+    if (deadCommit && e.inputType === "insertText" && e.data) term.input(e.data, true);
+  };
 
   // Fonts finishing to load or a move to a screen with another pixel density
   // change the metrics: recompute the size and refit.
@@ -162,6 +184,7 @@ export function createTerminal(o: TermOptions): TermHandle {
       if (!opened) {
         term.open(host);
         opened = true;
+        term.textarea?.addEventListener("input", onInput);
         // WebGL is much faster for agent output; the DOM renderer is the fallback.
         void import("@xterm/addon-webgl")
           .then(({ WebglAddon }) => {

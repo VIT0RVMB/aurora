@@ -94,6 +94,19 @@ impl Workspace {
         }
     }
 
+    /// Creates a folder (and any missing parents); refuses one that already exists.
+    pub fn create_dir(&self, rel: &str) -> Result<()> {
+        let path = paths::resolve(&self.root, rel)?;
+        if rel.trim_matches('/').is_empty() {
+            return Err(Error::BadName(rel.to_string()));
+        }
+        if std::fs::symlink_metadata(&path).is_ok() {
+            return Err(Error::Exists(rel.to_string()));
+        }
+        std::fs::create_dir_all(&path)?;
+        Ok(())
+    }
+
     /// Renames or moves a file or folder inside the workspace; refuses to overwrite.
     pub fn rename(&self, from: &str, to: &str) -> Result<()> {
         let src = paths::resolve(&self.root, from)?;
@@ -246,6 +259,11 @@ mod tests {
         assert!(dir.path().join("notes/new.md").is_file());
         assert!(matches!(ws.create_file("notes/new.md"), Err(Error::Exists(_))));
         assert!(matches!(ws.create_file("../x.md"), Err(Error::OutsideRoot(_))));
+        ws.create_dir("a/b").unwrap();
+        assert!(dir.path().join("a/b").is_dir());
+        assert!(matches!(ws.create_dir("a/b"), Err(Error::Exists(_))));
+        assert!(matches!(ws.create_dir("notes/new.md"), Err(Error::Exists(_))));
+        assert!(matches!(ws.create_dir("../out"), Err(Error::OutsideRoot(_))));
 
         ws.write_file("notes/other.md", "x").unwrap();
         assert!(matches!(ws.rename("notes/new.md", "notes/other.md"), Err(Error::Exists(_))));

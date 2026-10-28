@@ -11,6 +11,15 @@ const files: Record<string, string> = {
   "ui/src/App.tsx": 'export function App() {\n  return <div class="app">aurora</div>;\n}\n',
   "ui/src/main.tsx": 'import { render } from "solid-js/web";\nrender(() => <App />, document.body);\n',};
 files["docs/rich.md"] = [
+  "---",
+  "title: Rich markdown",
+  "status: draft",
+  "published: false",
+  "tags: [docs, editor]",
+  "aliases:",
+  "  - rich",
+  "  - live preview",
+  "---",
   "# Rich markdown",
   "",
   "Some **bold**, *italic*, `code`, ~~gone~~ and a [link to notes](notes.md#second) or [[notes|wiki link]].",
@@ -52,12 +61,16 @@ files["fixtures/big.rs"] = Array.from({ length: 90_000 }, (_, i) => `fn item_${i
 const mtimes: Record<string, number> = {};
 const now = () => Date.now();
 
+/** Folders made by `create_dir` that hold no file yet. */
+const emptyDirs = new Set<string>();
+
 function listDir(dir: string) {
   const prefix = dir ? `${dir}/` : "";
   const seen = new Map<string, boolean>();
-  for (const p of Object.keys(files)) {
+  for (const p of [...Object.keys(files), ...[...emptyDirs].map((d) => `${d}/`)]) {
     if (!p.startsWith(prefix)) continue;
     const rest = p.slice(prefix.length);
+    if (!rest) continue;
     const i = rest.indexOf("/");
     seen.set(i === -1 ? rest : rest.slice(0, i), i !== -1);
   }
@@ -261,6 +274,15 @@ export function installMock() {
         const dir = a.path.includes("/") ? a.path.slice(0, a.path.lastIndexOf("/")) : "";
         void emit("fs-change", { changed: [a.path], dirs: [dir], rescan: false });
         return { mtimeMs: now(), size: 0 };
+      }
+      case "create_dir": {
+        if (emptyDirs.has(a.path) || Object.keys(files).some((p) => p === a.path || p.startsWith(`${a.path}/`))) {
+          throw { kind: "exists", message: "already exists", detail: a.path };
+        }
+        emptyDirs.add(a.path);
+        const dir = a.path.includes("/") ? a.path.slice(0, a.path.lastIndexOf("/")) : "";
+        void emit("fs-change", { changed: [], dirs: [dir], rescan: false });
+        return null;
       }
       case "rename_path": {
         if (a.to in files) throw { kind: "exists", message: "already exists", detail: a.to };

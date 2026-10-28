@@ -13,6 +13,8 @@
     "DejaVu Sans Mono", monospace;
   --ui-size: 12px;
   --ui-small: 11px;
+  /* File tree and sessions list: a notch above the chrome, like VS Code's explorer. */
+  --list-size: 14px;
   /* Code and terminal size (Preferences). */
   --font-size: 13px;
 
@@ -32,7 +34,7 @@
   --bar-h: 35px;
   /* The window's title bar; tall enough for macOS's traffic lights. */
   --title-h: 30px;
-  --status-h: 22px;
+  --status-h: 24px;
   /* Set from the mono font at runtime; this is the fallback. */
   --cell-w: 8px;
   /* Code line height; follows the font size (Preferences). */
@@ -45,10 +47,13 @@
   --bg-alpha: 1;
   --surface: var(--bg);
   --surface-panel: var(--bg-panel);
+  --surface-term: var(--bg-term);
 
   color-scheme: dark;
   --bg: #1f1f1f;
   --bg-panel: #181818;
+  /* Terminals sit a step darker than the editor. */
+  --bg-term: #161616;
   --bg-raised: #252526;
   --bg-hover: #2a2d2e;
   --bg-active: #37373d;
@@ -119,12 +124,14 @@
 html.translucent {
   --surface: transparent;
   --surface-panel: color-mix(in srgb, var(--bg-panel) 50%, transparent);
+  --surface-term: color-mix(in srgb, var(--bg-term) 50%, transparent);
 }
 
 :root[data-theme="light"] {
   color-scheme: light;
   --bg: #ffffff;
   --bg-panel: #f8f8f8;
+  --bg-term: #f3f3f3;
   --bg-raised: #ffffff;
   --bg-hover: #f0f0f0;
   --bg-active: #e4e6f1;

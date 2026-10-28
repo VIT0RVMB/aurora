@@ -330,13 +330,14 @@ export async function setColor(s: SessionInfo, color: string | null): Promise<st
 }
 
 /** Archiving takes a session out of tabs, lists and the board; it keeps running if alive. */
-export async function setArchived(s: SessionInfo, archived: boolean): Promise<string | void> {
+/** `quiet` leaves the notice to the caller (archiving several at once says it once). */
+export async function setArchived(s: SessionInfo, archived: boolean, quiet = false): Promise<string | void> {
   try {
     upsert(await core.sessionSetArchived(s.id, archived));
   } catch (e) {
     return errorMessage(e);
   }
-  notify(t(archived ? "sess.archived" : "sess.unarchived", { name: displayName(s) }));
+  if (!quiet) notify(t(archived ? "sess.archived" : "sess.unarchived", { name: displayName(s) }));
 }
 
 export async function setStage(s: SessionInfo, stage: Stage): Promise<string | void> {
@@ -386,9 +387,19 @@ export async function remove(s: SessionInfo): Promise<string | void> {
       });
       if (choice !== "r") return;
     }
+  } catch (e) {
+    return errorMessage(e);
+  }
+  const err = await removeNow(s, removeWorktree, force);
+  if (err) return err;
+  notify(t(removeWorktree ? "sess.removedBoth" : "sess.removed", { name: s.name }));
+}
+
+/** Removes without asking (the caller did); `force` drops a worktree with uncommitted changes. */
+export async function removeNow(s: SessionInfo, removeWorktree: boolean, force: boolean): Promise<string | void> {
+  try {
     await core.sessionRemove(s.id, removeWorktree, force);
     dropSession(s.id);
-    notify(t(removeWorktree ? "sess.removedBoth" : "sess.removed", { name: s.name }));
   } catch (e) {
     if (errorKind(e) === "dirty_worktree") return t("sess.worktreeChanged");
     return errorMessage(e);

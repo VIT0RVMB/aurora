@@ -1,5 +1,5 @@
 import { batch, createSignal } from "solid-js";
-import { createStore, produce } from "solid-js/store";
+import { createStore, produce, reconcile } from "solid-js/store";
 import { core, errorMessage, type DirEntry, type FsBatch, type WorkspaceInfo } from "../lib/ipc";
 import { load, save } from "../lib/storage";
 import { ancestors } from "../lib/tree";
@@ -61,6 +61,16 @@ export async function loadDir(path: string) {
 export function setExpanded(path: string, open: boolean) {
   setTree("expanded", path, open ? true : undefined);
   if (open && !tree.children[path]) void loadDir(path);
+}
+
+/** Reloads every listing already loaded (the watcher may have missed a change). */
+export async function refreshTree() {
+  await Promise.all(Object.keys(tree.children).map(loadDir));
+}
+
+/** Folds every open folder. */
+export function collapseAll() {
+  setTree("expanded", reconcile({}));
 }
 
 export function select(path: string | null) {

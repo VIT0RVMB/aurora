@@ -1,13 +1,25 @@
-// Icons from Nerd Fonts (Codicons, VS Code's own set, plus one Material Design glyph), drawn by a tiny font
+// Icons from Nerd Fonts (Codicons, VS Code's own set), drawn by a tiny font
 // bundled with the app (`assets/icons/aurora-icons.woff`, its LICENSE.md says
-// how to add one), so they show without a Nerd Font installed.
+// how to add one), so they show without a Nerd Font installed. The activity
+// bar's are Font Awesome Free Solid, from a second subset (`aurora-activity.woff`).
+
+/** Font Awesome glyphs, drawn with `.fa-icon`. */
+const ACTIVITY = {
+  "fa-house": "\u{F015}",
+  "fa-folder-tree": "\u{F802}",
+  "fa-terminal": "\u{F120}",
+} as const;
 
 const GLYPHS = {
-  home: "\u{EB06}",
-  files: "\u{F0645}", // md-file_tree
+  ...ACTIVITY,
   terminal: "\u{EA85}",
   board: "\u{EB30}",
   add: "\u{EA60}",
+  // File tree header
+  "new-file": "\u{EA7F}",
+  "new-folder": "\u{EA80}",
+  refresh: "\u{EB37}",
+  "collapse-all": "\u{EAC5}",
   // File tree (lib/file-icons.ts)
   file: "\u{EA7B}",
   folder: "\u{EA83}",
@@ -30,8 +42,9 @@ const GLYPHS = {
 export type IconName = keyof typeof GLYPHS;
 
 export function Icon(p: { name: IconName; class?: string }) {
+  const font = () => (p.name in ACTIVITY ? "fa-icon" : "nf-icon");
   return (
-    <span class={`nf-icon ${p.class ?? ""}`} aria-hidden="true">
+    <span class={`${font()} ${p.class ?? ""}`} aria-hidden="true">
       {GLYPHS[p.name]}
     </span>
   );

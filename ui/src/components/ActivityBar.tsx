@@ -38,7 +38,7 @@ export function ActivityBar() {
   return (
     <nav class="activity" aria-label={t("activity.label")}>
       <button class="activity-btn" classList={{ active: home() }} title={t("activity.home")} onClick={ui.goHome}>
-        <Icon name="home" />
+        <Icon name="fa-house" />
       </button>
       <button
         class="activity-btn"
@@ -46,13 +46,13 @@ export function ActivityBar() {
         title={t("activity.files", { key: `${modLabel}P` })}
         onClick={showFiles}
       >
-        <Icon name="files" />
+        <Icon name="fa-folder-tree" />
         <Show when={editor.tabs.length > 0}>
           <span class="activity-badge faint">{editor.tabs.length}</span>
         </Show>
       </button>
       <button class="activity-btn" classList={{ active: inSessions() }} title={t("activity.sessions")} onClick={showSessions}>
-        <Icon name="terminal" />
+        <Icon name="fa-terminal" />
         <Show when={sessions.waiting() > 0}>
           <span class="activity-badge warn">{sessions.waiting()}</span>
         </Show>

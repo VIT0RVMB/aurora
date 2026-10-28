@@ -186,13 +186,32 @@
   height: var(--bar-h);
   padding-left: var(--sp-4);
 }
+/* New file, new folder, refresh, collapse: always shown with the tree. */
+.tree-actions {
+  margin-left: auto;
+  display: flex;
+  gap: 2px;
+}
+.tree-actions button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: var(--radius);
+  color: var(--fg-dim);
+  font-size: 16px;
+}
+.tree-actions button:hover {
+  background: var(--bg-hover);
+  color: var(--fg);
+}
 .tree-scroll {
   flex: 1;
   overflow: auto;
   outline: none;
   padding-bottom: var(--sp-2);
-  /* A notch above the chrome, like VS Code's explorer. */
-  font-size: 14px;
+  font-size: var(--list-size);
 }
 .tree-row {
   position: absolute;
@@ -285,6 +304,13 @@
 }
 .tree-row.selected .tree-name {
   color: var(--fg);
+}
+/* Ignored by git (.env, node_modules, build output): listed, dimmed, like VS Code. */
+.tree-row.ignored .tree-name {
+  color: var(--fg-faint);
+}
+.tree-row.ignored .tree-icon {
+  opacity: 0.6;
 }
 
 /* Editor */
@@ -423,6 +449,11 @@
   display: flex;
   justify-content: center;
   overflow: auto;
+  /* Read like the tree and sessions lists, a notch above the chrome. */
+  font-size: var(--list-size);
+}
+.home .box-title {
+  font-size: var(--ui-size);
 }
 .home-frame {
   width: min(1200px, 100%);
@@ -447,10 +478,12 @@
 }
 .home-head .accent {
   color: var(--fg);
-  font-size: 16px;
+  font-size: 18px;
   font-weight: 600;
 }
 .home-keys {
+  /* A step under the rows, so the shortcuts keep to one line. */
+  font-size: calc(var(--list-size) - 1px);
   display: flex;
   flex-wrap: wrap;
   gap: var(--sp-2);
@@ -470,7 +503,7 @@
 .home-key b {
   color: var(--fg-faint);
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: var(--ui-size);
   font-weight: 500;
 }
 .home-key:hover {
@@ -531,7 +564,7 @@
   overflow: hidden;
   text-overflow: ellipsis;
   color: var(--fg-dim);
-  font-size: var(--ui-small);
+  font-size: calc(var(--list-size) - 2px);
 }
 /* A meta that is the point of the row ("3 changed") never shrinks. */
 .home-meta.keep {
@@ -546,7 +579,7 @@
   white-space: nowrap;
   text-align: right;
   color: var(--fg-faint);
-  font-size: var(--ui-small);
+  font-size: calc(var(--list-size) - 2px);
   font-variant-numeric: tabular-nums;
 }
 .home-empty {
@@ -782,7 +815,7 @@
   height: var(--status-h);
   background: var(--status-bg);
   color: var(--status-fg);
-  font-size: var(--ui-small);
+  font-size: calc(var(--ui-size) + 1px);
   white-space: nowrap;
   overflow: hidden;
 }
@@ -804,7 +837,7 @@
   background: color-mix(in srgb, var(--status-fg) 18%, transparent);
   color: var(--status-fg);
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: var(--ui-small);
   font-weight: 600;
   line-height: var(--status-h);
   letter-spacing: 0.04em;
@@ -958,7 +991,7 @@
   min-height: 0;
 }
 .term-pane {
-  background: var(--surface);
+  background: var(--surface-term);
   flex: 1 1 0;
   min-width: 0;
   min-height: 0;
@@ -1033,6 +1066,7 @@
   flex: 1;
   overflow: auto;
   outline: none;
+  font-size: var(--list-size);
 }
 /* One line per session: glyph, name, then right-aligned meta and age. */
 .session-row {
@@ -1069,14 +1103,14 @@
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
-  font-size: var(--ui-small);
+  font-size: calc(var(--list-size) - 2px);
 }
 .session-age {
   flex: none;
   min-width: 24px;
   text-align: right;
   color: var(--fg-faint);
-  font-size: var(--ui-small);
+  font-size: calc(var(--list-size) - 2px);
   font-variant-numeric: tabular-nums;
 }
 .sessions-empty {
@@ -1665,6 +1699,26 @@ body.dragging * {
   color: var(--fg);
   background: var(--bg-active);
 }
+/* Several sessions picked: what can be done to all of them. */
+.session-row.marked {
+  background: var(--bg-select-dim);
+  box-shadow: inset 2px 0 var(--accent);
+}
+.sessions-bulk {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: var(--sp-1) var(--sp-2) var(--sp-1) var(--sp-3);
+  border-bottom: 1px solid var(--line);
+  color: var(--fg);
+  font-size: var(--ui-small);
+}
+.sessions-bulk-gap {
+  flex: 1;
+}
+.sessions-head-btn.danger:hover {
+  color: var(--danger);
+}
 .session-row.archived {
   opacity: 0.75;
 }
@@ -1702,6 +1756,26 @@ body.dragging * {
   font-weight: normal;
   line-height: 1;
   display: inline-block;
+}
+
+/* Font Awesome Free Solid subset for the activity bar (assets/icons/LICENSE.md) */
+@font-face {
+  font-family: "Aurora Activity";
+  src: url("../assets/icons/aurora-activity.woff") format("woff");
+  font-display: block;
+}
+.fa-icon {
+  font-family: "Aurora Activity";
+  font-style: normal;
+  font-weight: normal;
+  line-height: 1;
+  display: inline-block;
+}
+/* Solid glyphs read heavier than Codicons: a size smaller, centered in a fixed box. */
+.activity-btn .fa-icon {
+  font-size: 18px;
+  width: 22px;
+  text-align: center;
 }
 
 /* Activity bar: home, files, sessions as full-width icon cells; the open

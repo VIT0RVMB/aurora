@@ -9,7 +9,7 @@ import * as editor from "./editor";
 import * as sessions from "./sessions";
 import { isMac } from "../lib/platform";
 import { ask, confirm, notify, openDiff, openHistory, openMenu, type MenuItem } from "./ui";
-import { select, workspace } from "./workspace";
+import { loadDir, reveal, select, setExpanded, tree, workspace } from "./workspace";
 
 const report = (err: string | void) => err && notify(err, "error");
 
@@ -50,6 +50,95 @@ export function sessionMenu(e: MouseEvent, s: SessionInfo) {
   openMenu(e, items, displayName(s));
 }
 
+// ── several sessions at once (the sessions panel's selection) ──────────────
+
+/** Runs `f` on every session; reports failures and returns how many worked. */
+async function settle(list: SessionInfo[], f: (s: SessionInfo) => Promise<string | void>): Promise<number> {
+  const errors = (await Promise.all(list.map(f))).filter((e): e is string => !!e);
+  for (const e of errors) report(e);
+  return list.length - errors.length;
+}
+
+export async function archiveMany(list: SessionInfo[], archived: boolean) {
+  if (list.length === 1) return report(await sessions.setArchived(list[0], archived));
+  const ok = await settle(list, (s) => sessions.setArchived(s, archived, true));
+  if (ok) notify(t(archived ? "bulk.archived" : "bulk.unarchived", { n: ok }));
+}
+
+/** Stops the live ones, after one confirmation. */
+export async function endMany(list: SessionInfo[]) {
+  const alive = list.filter((s) => s.alive);
+  if (alive.length <= 1) return alive[0] && endSession(alive[0]);
+  const busy = alive.filter((s) => s.status === "running").length;
+  const choice = await confirm({
+    title: t("bulk.endTitle", { n: alive.length }),
+    lines: [
+      { text: t("menu.endKeeps") },
+      ...(busy ? [{ text: t("bulk.endBusy", { n: busy }), tone: "warn" as const }] : []),
+    ],
+    options: [
+      { key: "e", label: t("menu.end"), tone: "danger" },
+      { key: "c", label: t("cancel") },
+    ],
+  });
+  if (choice !== "e") return;
+  const ok = await settle(alive, sessions.kill);
+  if (ok) notify(t("bulk.ended", { n: ok }));
+}
+
+/** Removes them after one confirmation, which also decides about their worktrees. */
+export async function removeMany(list: SessionInfo[]) {
+  if (list.length === 1) return report(await sessions.remove(list[0]));
+  const withTree = list.filter((s) => s.worktree);
+  let dirty: Set<string>;
+  try {
+    const flags = await Promise.all(withTree.map((s) => core.sessionWorktreeDirty(s.id)));
+    dirty = new Set(withTree.filter((_, i) => flags[i]).map((s) => s.id));
+  } catch (e) {
+    return report(errorMessage(e));
+  }
+  const alive = list.filter((s) => s.alive).length;
+  const choice = await confirm({
+    title: t("bulk.removeTitle", { n: list.length }),
+    lines: [
+      ...(alive ? [{ text: t("bulk.stillRunning", { n: alive }), tone: "warn" as const }] : []),
+      ...(withTree.length ? [{ text: t("bulk.worktrees", { n: withTree.length }), tone: "dim" as const }] : []),
+      ...(dirty.size ? [{ text: t("bulk.dirty", { n: dirty.size }), tone: "danger" as const }] : []),
+    ],
+    options: withTree.length
+      ? [
+          { key: "w", label: t("bulk.removeBoth"), tone: dirty.size ? "danger" : "accent" },
+          { key: "s", label: t("bulk.onlySessions") },
+          { key: "c", label: t("cancel") },
+        ]
+      : [
+          { key: "r", label: t("bulk.remove"), tone: "danger" },
+          { key: "c", label: t("cancel") },
+        ],
+  });
+  if (choice !== "w" && choice !== "s" && choice !== "r") return;
+  const trees = choice === "w";
+  const ok = await settle(list, (s) => sessions.removeNow(s, trees && !!s.worktree, trees && dirty.has(s.id)));
+  if (ok) notify(t("bulk.removed", { n: ok }));
+}
+
+/** Right-click on a selection of several sessions. */
+export function sessionsMenu(e: MouseEvent, list: SessionInfo[]) {
+  const after = (p: Promise<unknown>) => void p;
+  const archived = list.every((s) => s.archived);
+  const items: MenuItem[] = [
+    archived
+      ? { label: t("menu.unarchive"), run: () => after(archiveMany(list, false)) }
+      : { label: t("menu.archive"), run: () => after(archiveMany(list, true)) },
+    { separator: true },
+    ...(list.some((s) => s.alive)
+      ? [{ label: t("menu.endSession"), tone: "danger" as const, run: () => after(endMany(list)) }]
+      : []),
+    { label: t("menu.removeSession"), tone: "danger", run: () => after(removeMany(list)) },
+  ];
+  openMenu(e, items, t("sessions.selected", { n: list.length }));
+}
+
 /** Selects the name without its extension, like Finder and VS Code. */
 function stemRange(path: string): [number, number] {
   const name = baseName(path);
@@ -66,6 +155,30 @@ export async function newFile(dir: string) {
     await core.createFile(path);
     await editor.openFile(path);
     select(path);
+  } catch (e) {
+    notify(errorMessage(e), "error");
+  }
+}
+
+/** Where the tree's new file / folder buttons create: the selected folder, or the selected file's. */
+export function selectedDir(): string {
+  const sel = tree.selected;
+  if (!sel) return "";
+  const entry = tree.children[parentPath(sel)]?.find((e) => e.path === sel);
+  return entry?.isDir ? sel : parentPath(sel);
+}
+
+export async function newFolder(dir: string) {
+  const prefix = dir ? `${dir}/` : "";
+  const typed = await ask({ title: t("menu.newFolder"), value: prefix, select: [prefix.length, prefix.length] });
+  const path = typed?.replace(/\/+$/, "");
+  if (!path || path === dir) return;
+  try {
+    await core.createDir(path);
+    // Not waiting for the watcher: the new folder shows (and is selected) now.
+    await loadDir(parentPath(path));
+    await reveal(path);
+    setExpanded(path, true);
   } catch (e) {
     notify(errorMessage(e), "error");
   }
@@ -140,7 +253,10 @@ export async function deletePath(path: string, isDir: boolean) {
 /** A tree row (or the empty space below it, with no path). */
 export function fileMenu(e: MouseEvent, entry: { path: string; isDir: boolean } | null) {
   const dir = !entry ? "" : entry.isDir ? entry.path : parentPath(entry.path);
-  const items: MenuItem[] = [{ label: t("menu.newFile"), run: () => void newFile(dir) }];
+  const items: MenuItem[] = [
+    { label: t("menu.newFile"), run: () => void newFile(dir) },
+    { label: t("menu.newFolder"), run: () => void newFolder(dir) },
+  ];
   if (entry) {
     const { path, isDir } = entry;
     items.push(
