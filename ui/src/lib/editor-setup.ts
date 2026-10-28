@@ -73,10 +73,11 @@ const terminalTheme = EditorView.theme({
   },
   "&.cm-focused > .cm-scroller > .cm-selectionLayer .cm-selectionBackground, .cm-selectionBackground":
     { backgroundColor: "var(--selection) !important" },
-  ".cm-activeLine": { backgroundColor: "color-mix(in srgb, var(--fg) 4%, transparent)" },
+  // Current line as a frame, not a fill, like Visual Studio.
+  ".cm-activeLine": { backgroundColor: "transparent", boxShadow: "inset 0 0 0 1px var(--line-strong)" },
   ".cm-gutters": { backgroundColor: "var(--surface)", color: "var(--fg-faint)", border: "none" },
   ".cm-lineNumbers .cm-gutterElement": { padding: "0 var(--cell-w) 0 calc(var(--cell-w) * 2)" },
-  ".cm-activeLineGutter": { backgroundColor: "transparent", color: "var(--fg-dim)" },
+  ".cm-activeLineGutter": { backgroundColor: "transparent", color: "var(--fg)" },
   ".cm-foldGutter .cm-gutterElement": { padding: "0", width: "calc(var(--cell-w) * 2)" },
   ".cm-matchingBracket": { color: "var(--accent) !important", backgroundColor: "var(--match-bg)" },
   ".cm-selectionMatch": { backgroundColor: "var(--match-bg)" },

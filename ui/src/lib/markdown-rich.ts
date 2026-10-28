@@ -514,11 +514,10 @@ const proseTheme = EditorView.theme({
     fontFamily: "var(--font-ui)",
     fontSize: "calc(var(--font-size) + 2px)",
     lineHeight: "1.65",
-    maxWidth: "760px",
     padding: "var(--sp-4) var(--sp-5) 30vh",
   },
   "&.cm-md-prose .cm-gutters": { display: "none" },
-  "&.cm-md-prose .cm-activeLine": { backgroundColor: "transparent" },
+  "&.cm-md-prose .cm-activeLine": { backgroundColor: "transparent", boxShadow: "none" },
   "&.cm-md-prose .cm-md-code, &.cm-md-prose .cm-md-codeblock, &.cm-md-prose .cm-md-table-src": {
     fontFamily: MONO,
     fontSize: "var(--font-size)",

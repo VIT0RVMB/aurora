@@ -1,4 +1,5 @@
 import { createEffect, createMemo, createSignal, For, on, onCleanup, onMount, Show } from "solid-js";
+import { fileIcon } from "../lib/file-icons";
 import { t } from "../lib/i18n";
 import { MARK_GLYPH } from "../lib/marks";
 import { flattenTree, parentPath } from "../lib/tree";
@@ -7,6 +8,7 @@ import { fileMenu } from "../state/menus";
 import { openFile } from "../state/editor";
 import { treeFocus } from "../state/ui";
 import { select, setExpanded, tree, workspace } from "../state/workspace";
+import { Icon } from "./Icon";
 
 const OVERSCAN = 10;
 
@@ -153,6 +155,10 @@ export function FileTree(p: { rowH: () => number }) {
                 title={row.entry.path}
               >
                 <span class="tree-glyph" classList={{ chevron: row.entry.isDir, open: row.expanded }} />
+                {(() => {
+                  const f = fileIcon(row.entry.name, row.entry.isDir, row.expanded);
+                  return <Icon name={f.icon} class={`tree-icon ft-${f.tone}`} />;
+                })()}
                 <span class="tree-name">{row.entry.name}</span>
                 <Show when={row.loading}>
                   <span class="faint"> …</span>

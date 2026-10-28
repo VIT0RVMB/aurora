@@ -38,3 +38,19 @@ Próximos passos:
 - Mermaid com a fonte da interface.
 - Tela de boas-vindas (sem pasta aberta) revisada no app real.
 - Conferir translucidez/blur no app real (os screenshots são do mock no Chrome).
+
+## Visual denso (IDE)
+
+Branch `ui-dense`, derivada de `ui-modern`. Referência Visual Studio / VS Code em vez de Obsidian: mesma estrutura, mais informação por tela.
+
+Feito (só tokens e CSS, nenhum componente mudou):
+
+1. **Cores**: paletas Dark Modern / Light Modern do VS Code, sintaxe e ANSI do VS Code.
+2. **Densidade**: interface em 12px, linhas de lista com 22px, barra de título com 30px, abas com 35px, cantos quase retos.
+3. **Árvore e markdown**: ícones de arquivo e pasta (Codicons) coloridos por tipo; o markdown rico usa toda a largura do editor.
+4. **Componentes**: abas retangulares separadas por linhas (a ativa se funde ao editor e ganha linha de accent em cima quando o painel tem foco), cabeçalhos de seção em caixa alta, abas do painel direito sublinhadas, barra de status azul, activity bar com marca na borda esquerda, linha focada de listas emoldurada no accent, linha atual do código emoldurada.
+
+Próximos passos:
+
+- Comparar lado a lado com `ui-modern` no app real e escolher (ou expor como preferência de densidade).
+- Ícones por tipo de arquivo também nas abas (na árvore já estão: Codicons coloridos por tipo, `lib/file-icons.ts`).

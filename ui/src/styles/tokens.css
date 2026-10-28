@@ -1,6 +1,8 @@
 /*
- * Aurora design system. The chrome uses the system UI font and a 4px spacing
- * scale; code and terminals keep the monospace grid, where one cell is
+ * Aurora design system, dense IDE look (Visual Studio / VS Code reference):
+ * compact rows, square corners, flat panels split by 1px lines, uppercase
+ * section headers and an accent status bar. The chrome uses the system UI
+ * font and a 4px spacing scale; code and terminals keep the monospace grid, where one cell is
  * --cell-w wide (measured from the mono font at runtime) and --cell-h tall.
  * Panel widths are stored in cells so they line up with the terminal.
  * Colors are tokens; components never use literal colors.
@@ -9,8 +11,8 @@
   --font-ui: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
   --font-mono: "JetBrains Mono", "Berkeley Mono", "SF Mono", "Cascadia Code", Menlo, Consolas,
     "DejaVu Sans Mono", monospace;
-  --ui-size: 13px;
-  --ui-small: 12px;
+  --ui-size: 12px;
+  --ui-small: 11px;
   /* Code and terminal size (Preferences). */
   --font-size: 13px;
 
@@ -20,22 +22,24 @@
   --sp-4: 16px;
   --sp-5: 24px;
   --sp-6: 32px;
-  --radius-sm: 4px;
-  --radius: 6px;
-  --radius-lg: 10px;
+  --radius-sm: 2px;
+  --radius: 3px;
+  --radius-lg: 4px;
 
   /* Rows of lists (tree, sessions, palette); TS reads it at runtime. */
-  --row-h: 26px;
-  /* Title and tab bars. */
-  --bar-h: 38px;
-  --status-h: 24px;
+  --row-h: 22px;
+  /* Tab bars and panel headers. */
+  --bar-h: 35px;
+  /* The window's title bar; tall enough for macOS's traffic lights. */
+  --title-h: 30px;
+  --status-h: 22px;
   /* Set from the mono font at runtime; this is the fallback. */
   --cell-w: 8px;
   /* Code line height; follows the font size (Preferences). */
   --cell-h: 20px;
 
   /* Strong selection: the picked row of a focused list. */
-  --bg-pick: color-mix(in srgb, var(--accent) 22%, transparent);
+  --bg-pick: color-mix(in srgb, var(--accent) 30%, transparent);
   /* Large surfaces paint these; with a see-through window (Preferences)
      they turn transparent and only the body carries the tint. */
   --bg-alpha: 1;
@@ -43,62 +47,73 @@
   --surface-panel: var(--bg-panel);
 
   color-scheme: dark;
-  --bg: #19191c;
-  --bg-panel: #141416;
-  --bg-raised: #222226;
-  --bg-hover: #26262a;
-  --bg-active: #2c2c31;
-  --bg-select: #263552;
-  --bg-select-dim: #23232a;
-  --line: #2a2a2f;
-  --line-strong: #3a3a41;
-  --fg: #e6e6ea;
-  --fg-dim: #a0a0aa;
-  --fg-faint: #6c6c76;
-  --accent: #4f8cff;
+  --bg: #1f1f1f;
+  --bg-panel: #181818;
+  --bg-raised: #252526;
+  --bg-hover: #2a2d2e;
+  --bg-active: #37373d;
+  --bg-select: #04395e;
+  --bg-select-dim: #37373d;
+  --line: #2b2b2b;
+  --line-strong: #3c3c3c;
+  --fg: #cccccc;
+  --fg-dim: #9d9d9d;
+  --fg-faint: #6e7681;
+  --accent: #0078d4;
   --accent-fg: #ffffff;
-  --accent-2: #a78bfa;
-  --warn: #e5b450;
-  --danger: #f2665c;
-  --info: #5fb4f0;
-  --success: #4cc38a;
-  --match: #8ab4ff;
-  --match-bg: rgba(79, 140, 255, 0.2);
-  --cursor: #4f8cff;
-  --selection: rgba(79, 140, 255, 0.28);
-  --shadow: 0 12px 32px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(255, 255, 255, 0.06);
+  --accent-2: #c586c0;
+  --warn: #cca700;
+  --danger: #f14c4c;
+  --info: #3794ff;
+  --success: #2ea043;
+  --match: #e2c08d;
+  --match-bg: rgba(234, 92, 0, 0.33);
+  --cursor: #aeafad;
+  --selection: #264f78;
+  --shadow: 0 4px 12px rgba(0, 0, 0, 0.5), 0 0 0 1px #454545;
+  /* Status bar: an accent strip, like Visual Studio's. */
+  --status-bg: #0078d4;
+  --status-fg: #ffffff;
+  /* File tree icons by kind. */
+  --icon-folder: #dcb67a;
+  --icon-code: #519aba;
+  --icon-doc: #8dc149;
+  --icon-data: #cbcb41;
+  --icon-style: #a074c4;
+  --icon-media: #e37933;
+  --icon-config: #8b949e;
 
-  --syn-keyword: #c792ea;
-  --syn-string: #a5d6a7;
-  --syn-number: #f5b97a;
-  --syn-comment: #6c6c76;
-  --syn-function: #82aaff;
-  --syn-type: #ffcb6b;
-  --syn-variable: #e6e6ea;
-  --syn-property: #89ddff;
-  --syn-operator: #a0a0aa;
-  --syn-tag: #f07178;
-  --syn-attr: #ffcb6b;
-  --syn-heading: #e6e6ea;
-  --syn-link: #6ea2ff;
+  --syn-keyword: #569cd6;
+  --syn-string: #ce9178;
+  --syn-number: #b5cea8;
+  --syn-comment: #6a9955;
+  --syn-function: #dcdcaa;
+  --syn-type: #4ec9b0;
+  --syn-variable: #9cdcfe;
+  --syn-property: #9cdcfe;
+  --syn-operator: #d4d4d4;
+  --syn-tag: #569cd6;
+  --syn-attr: #9cdcfe;
+  --syn-heading: #569cd6;
+  --syn-link: #3794ff;
 
   /* Terminal palette (ANSI 0-15), read by xterm.js at runtime. */
-  --ansi-black: #2a2a2f;
-  --ansi-red: #f2665c;
-  --ansi-green: #4cc38a;
-  --ansi-yellow: #e5b450;
-  --ansi-blue: #4f8cff;
-  --ansi-magenta: #b48cf2;
-  --ansi-cyan: #4fc1d6;
-  --ansi-white: #d4d4da;
-  --ansi-bright-black: #6c6c76;
-  --ansi-bright-red: #ff8a80;
-  --ansi-bright-green: #72d9a6;
-  --ansi-bright-yellow: #f2cc7a;
-  --ansi-bright-blue: #7eaaff;
-  --ansi-bright-magenta: #cdb0ff;
-  --ansi-bright-cyan: #7ed6e6;
-  --ansi-bright-white: #ffffff;
+  --ansi-black: #000000;
+  --ansi-red: #cd3131;
+  --ansi-green: #0dbc79;
+  --ansi-yellow: #e5e510;
+  --ansi-blue: #2472c8;
+  --ansi-magenta: #bc3fbc;
+  --ansi-cyan: #11a8cd;
+  --ansi-white: #e5e5e5;
+  --ansi-bright-black: #666666;
+  --ansi-bright-red: #f14c4c;
+  --ansi-bright-green: #23d18b;
+  --ansi-bright-yellow: #f5f543;
+  --ansi-bright-blue: #3b8eea;
+  --ansi-bright-magenta: #d670d6;
+  --ansi-bright-cyan: #29b8db;
+  --ansi-bright-white: #e5e5e5;
 }
 
 html.translucent {
@@ -109,58 +124,67 @@ html.translucent {
 :root[data-theme="light"] {
   color-scheme: light;
   --bg: #ffffff;
-  --bg-panel: #f7f7f8;
+  --bg-panel: #f8f8f8;
   --bg-raised: #ffffff;
-  --bg-hover: #efeff1;
-  --bg-active: #e7e7ea;
-  --bg-select: #dce8ff;
-  --bg-select-dim: #ececef;
-  --line: #e7e7ea;
-  --line-strong: #d4d4d9;
-  --fg: #1b1b1f;
-  --fg-dim: #5c5c66;
-  --fg-faint: #9a9aa3;
-  --accent: #2563eb;
+  --bg-hover: #f0f0f0;
+  --bg-active: #e4e6f1;
+  --bg-select: #add6ff;
+  --bg-select-dim: #e4e6f1;
+  --line: #e5e5e5;
+  --line-strong: #cecece;
+  --fg: #3b3b3b;
+  --fg-dim: #616161;
+  --fg-faint: #8b949e;
+  --accent: #005fb8;
   --accent-fg: #ffffff;
-  --accent-2: #7c3aed;
-  --warn: #b7791f;
-  --danger: #d93a2f;
-  --info: #0b72c4;
-  --success: #15935a;
-  --match: #1d4ed8;
-  --match-bg: rgba(37, 99, 235, 0.14);
-  --cursor: #2563eb;
-  --selection: rgba(37, 99, 235, 0.2);
-  --shadow: 0 12px 32px rgba(20, 20, 30, 0.14), 0 0 0 1px rgba(20, 20, 30, 0.08);
+  --accent-2: #af00db;
+  --warn: #bf8803;
+  --danger: #e51400;
+  --info: #1a85ff;
+  --success: #388a34;
+  --match: #3b3b3b;
+  --match-bg: rgba(234, 92, 0, 0.25);
+  --cursor: #000000;
+  --selection: #add6ff;
+  --shadow: 0 4px 12px rgba(0, 0, 0, 0.16), 0 0 0 1px #cecece;
+  --status-bg: #005fb8;
+  --status-fg: #ffffff;
+  --icon-folder: #b8862b;
+  --icon-code: #2b7bb0;
+  --icon-doc: #4f8a10;
+  --icon-data: #9a8700;
+  --icon-style: #8a4cc0;
+  --icon-media: #c4581b;
+  --icon-config: #6e7681;
 
-  --syn-keyword: #8b3fd9;
-  --syn-string: #22863a;
-  --syn-number: #b45309;
-  --syn-comment: #9a9aa3;
-  --syn-function: #2457c5;
-  --syn-type: #a15c00;
-  --syn-variable: #1b1b1f;
-  --syn-property: #0e7490;
-  --syn-operator: #5c5c66;
-  --syn-tag: #c0362c;
-  --syn-attr: #a15c00;
-  --syn-heading: #1b1b1f;
-  --syn-link: #2563eb;
+  --syn-keyword: #0000ff;
+  --syn-string: #a31515;
+  --syn-number: #098658;
+  --syn-comment: #008000;
+  --syn-function: #795e26;
+  --syn-type: #267f99;
+  --syn-variable: #001080;
+  --syn-property: #001080;
+  --syn-operator: #3b3b3b;
+  --syn-tag: #800000;
+  --syn-attr: #e50000;
+  --syn-heading: #0000ff;
+  --syn-link: #005fb8;
 
-  --ansi-black: #1b1b1f;
-  --ansi-red: #d93a2f;
-  --ansi-green: #15935a;
-  --ansi-yellow: #a66a00;
-  --ansi-blue: #2563eb;
-  --ansi-magenta: #8b3fd9;
-  --ansi-cyan: #0e7490;
-  --ansi-white: #9a9aa3;
-  --ansi-bright-black: #5c5c66;
-  --ansi-bright-red: #f05045;
-  --ansi-bright-green: #22b070;
-  --ansi-bright-yellow: #c98a00;
-  --ansi-bright-blue: #3b82f6;
-  --ansi-bright-magenta: #a35ef0;
-  --ansi-bright-cyan: #1592ad;
-  --ansi-bright-white: #ffffff;
+  --ansi-black: #000000;
+  --ansi-red: #cd3131;
+  --ansi-green: #107c10;
+  --ansi-yellow: #949800;
+  --ansi-blue: #0451a5;
+  --ansi-magenta: #bc05bc;
+  --ansi-cyan: #0598bc;
+  --ansi-white: #555555;
+  --ansi-bright-black: #666666;
+  --ansi-bright-red: #cd3131;
+  --ansi-bright-green: #14ce14;
+  --ansi-bright-yellow: #b5ba00;
+  --ansi-bright-blue: #0451a5;
+  --ansi-bright-magenta: #bc05bc;
+  --ansi-bright-cyan: #0598bc;
+  --ansi-bright-white: #a5a5a5;
 }
