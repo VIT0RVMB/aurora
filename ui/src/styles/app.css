@@ -1561,13 +1561,19 @@ body.dragging * {
 .sc-purple { --sc: var(--sc-purple); }
 .sc-gray { --sc: var(--sc-gray); }
 
-/* A colored session: its color on the tab's top line, tinted when active. */
+/* A colored session: its tab is always filled with its color, stronger when
+   it is the active tab of the focused pane. */
 .tab.colored,
 .term-pane.dimmed .tab.colored.active {
+  background: color-mix(in srgb, var(--sc) 16%, var(--surface-panel));
   box-shadow: inset 0 2px var(--sc);
+  color: var(--fg-dim);
+}
+.tab.colored:hover {
+  color: var(--fg);
 }
 .tab.colored.active {
-  background: color-mix(in srgb, var(--sc) 12%, var(--surface));
+  background: color-mix(in srgb, var(--sc) 34%, var(--surface));
   color: var(--fg);
 }
 .session-row.colored,
