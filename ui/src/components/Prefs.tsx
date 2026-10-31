@@ -92,6 +92,7 @@ export function Prefs() {
   onCleanup(() => window.removeEventListener("keydown", onKey, true));
 
   const themeRows = createMemo<Row[]>(() => [
+    { id: "system", label: t("theme.system"), tag: t("theme.followsOs") },
     { id: "dark", label: "Phosphor", tag: t("theme.dark") },
     { id: "light", label: "Aurora Light", tag: t("theme.light") },
     ...themes().map((th) => ({ id: th.id, label: th.name, tag: t(th.variant === "dark" ? "theme.dark" : "theme.light") })),

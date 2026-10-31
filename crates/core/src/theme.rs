@@ -160,6 +160,8 @@ pub fn tokens(s: &Scheme) -> BTreeMap<&'static str, String> {
     set("color-scheme", if s.variant == Variant::Dark { "dark" } else { "light" }.into());
     set("--bg", h(0x0));
     set("--bg-panel", b(0x0).mix(b(0x1), 0.4).hex());
+    // Base24's darker background; a Base16 scheme gets base00 deepened.
+    set("--bg-term", h(0x10));
     set("--bg-raised", h(0x1));
     set("--bg-hover", b(0x1).mix(b(0x2), 0.4).hex());
     set("--bg-select", h(0x2));

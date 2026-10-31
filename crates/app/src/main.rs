@@ -20,6 +20,7 @@ fn main() {
             commands::stat_file,
             commands::read_image,
             commands::create_file,
+            commands::create_dir,
             commands::rename_path,
             commands::open_path,
             commands::reveal_path,

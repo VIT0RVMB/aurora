@@ -69,6 +69,7 @@ const commands: Command[] = [
     complete: (before) =>
       before.length === 0
         ? [
+            { value: "system", description: `${t("theme.system")} · ${t("theme.followsOs")}` },
             { value: "dark", description: `Phosphor · ${t("theme.dark")}` },
             { value: "light", description: `Aurora Light · ${t("theme.light")}` },
             { value: "toggle", description: t("theme.toggle") },

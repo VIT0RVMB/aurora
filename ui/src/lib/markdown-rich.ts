@@ -7,6 +7,7 @@ import { languages } from "@codemirror/language-data";
 import { EditorSelection, EditorState, type Extension, Facet, type Range, StateField } from "@codemirror/state";
 import { Decoration, type DecorationSet, EditorView, keymap, WidgetType } from "@codemirror/view";
 import type { SyntaxNode, SyntaxNodeRef } from "@lezer/common";
+import { FrontmatterWidget, frontmatterCursor, frontmatterOf } from "./markdown-frontmatter";
 import {
   enteredBlock,
   focusEnteredTable,
@@ -261,9 +262,21 @@ export function richDecorations(state: EditorState): DecorationSet {
   const text = (n: SyntaxNodeRef) => doc.sliceString(n.from, n.to);
   const tree = syntaxTree(state);
 
+  // YAML frontmatter: properties, or its source (dimmed, no markdown) when toggled.
+  const fm = frontmatterOf(state);
+  const fmEnd = fm ? fm.to : -1;
+  if (fm && !isTableSource(state, 0)) {
+    out.push(Decoration.replace({ widget: new FrontmatterWidget(doc.sliceString(0, fm.to)), block: true }).range(0, fm.to));
+  } else if (fm) {
+    lineClass(0, fm.to, "cm-md-frontmatter");
+    out.push(Decoration.widget({ widget: new SourceBackWidget(0), side: 1 }).range(doc.line(1).to));
+  }
+
   tree.iterate({
     enter: (n) => {
       const name = n.name;
+      // Markdown reads `---` / `key: x` as a rule and a heading: not inside frontmatter.
+      if (n.from < fmEnd && name !== "Document") return false;
       const heading = /^(ATX|Setext)Heading(\d)$/.exec(name);
       if (heading) {
         lineClass(n.from, n.from, `cm-md-h cm-md-h${heading[2]}`);
@@ -385,6 +398,7 @@ export function richDecorations(state: EditorState): DecorationSet {
   for (const m of all.matchAll(WIKI)) {
     const from = m.index;
     const to = from + m[0].length;
+    if (from < fmEnd) continue;
     if (CODE_NODES.has(tree.resolveInner(from + 2, 1).name)) continue;
     const inner = m[1];
     const attrs = { "data-wiki": inner };
@@ -542,6 +556,53 @@ const richTheme = EditorView.baseTheme({
   ".cm-md-mermaid.error": { color: "var(--danger)", whiteSpace: "pre-wrap" },
   ".cm-md-image img": { maxWidth: "100%", maxHeight: "60vh", display: "block" },
   ".cm-md-image": { color: "var(--fg-dim)" },
+  // Frontmatter as properties: key labels left, values as fields, on the cell grid.
+  ".cm-md-frontmatter": { color: "var(--fg-dim)" },
+  // The markdown highlighter still reads `[a, b]` as a link: plain YAML here.
+  ".cm-md-frontmatter *": { color: "inherit !important", textDecoration: "none !important", fontWeight: "inherit !important" },
+  ".cm-md-props": {
+    margin: "0 var(--cell-w) var(--cell-h)",
+    paddingBottom: "calc(var(--cell-h) / 2)",
+    borderBottom: "1px dashed var(--line-strong)",
+    lineHeight: "var(--cell-h)",
+  },
+  ".cm-md-props-head": { display: "flex", alignItems: "center", gap: "var(--cell-w)", color: "var(--fg-faint)" },
+  ".cm-md-prop": { display: "flex", alignItems: "flex-start", gap: "var(--cell-w)" },
+  ".cm-md-prop-key": {
+    flex: "0 0 calc(var(--cell-w) * 18)",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
+    color: "var(--syn-property)",
+  },
+  ".cm-md-prop-value": {
+    flex: "1",
+    minWidth: "0",
+    minHeight: "var(--cell-h)",
+    display: "flex",
+    flexWrap: "wrap",
+    alignItems: "center",
+    gap: "0 var(--cell-w)",
+  },
+  ".cm-md-prop-value.raw": { whiteSpace: "pre-wrap", color: "var(--fg-dim)" },
+  ".cm-md-prop-field": {
+    flex: "1",
+    minWidth: "0",
+    padding: "0 calc(var(--cell-w) / 2)",
+    outline: "none",
+    whiteSpace: "pre-wrap",
+  },
+  ".cm-md-prop-field:hover": { backgroundColor: "var(--bg-hover)" },
+  ".cm-md-prop-field:focus, .cm-md-chip:focus": { backgroundColor: "var(--bg-select-dim)", outline: "1px solid var(--accent)" },
+  // A list item reads as `[item]`.
+  ".cm-md-chip": { color: "var(--syn-string)", outline: "none", minWidth: "1ch" },
+  ".cm-md-chip::before": { content: '"["', color: "var(--fg-faint)" },
+  ".cm-md-chip::after": { content: '"]"', color: "var(--fg-faint)" },
+  ".cm-md-prop-field:empty::before, .cm-md-prop-value:empty::before": {
+    content: "attr(data-empty)",
+    color: "var(--fg-faint)",
+  },
+  ".cm-md-prop-value input[type=checkbox]": { margin: "0", accentColor: "var(--accent)", cursor: "pointer" },
 });
 
 /** Links work in source mode too (⌘-click, ⌘Enter, `gf`); rich mode adds the rendering. */
@@ -549,4 +610,10 @@ export function markdownLinks(o: RichOptions): Extension {
   return [optionsFacet.of(o), handlers, keymap.of([{ key: "Mod-Enter", run: (v) => followLinkAt(v) }]), richTheme];
 }
 
-export const richMarkdown = (): Extension => [tableSource, richField, enterBlocks, focusEnteredTable];
+export const richMarkdown = (): Extension => [
+  tableSource,
+  richField,
+  enterBlocks,
+  focusEnteredTable,
+  frontmatterCursor,
+];

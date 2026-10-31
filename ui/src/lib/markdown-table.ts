@@ -116,7 +116,7 @@ export function emptyRow(cols: number): string {
 
 export const toggleTableSource = StateEffect.define<number>();
 
-/** Start positions of tables switched to source, kept in place as the text changes. */
+/** Start positions of tables (and the frontmatter, at 0) switched to source, kept in place as the text changes. */
 export const tableSource = StateField.define<number[]>({
   create: () => [],
   update(list, tr) {

@@ -114,6 +114,11 @@ pub fn create_file(state: State<'_, AppState>, path: String) -> CmdResult<FileSt
 }
 
 #[tauri::command]
+pub fn create_dir(state: State<'_, AppState>, path: String) -> CmdResult<()> {
+    Ok(state.ws()?.create_dir(&path)?)
+}
+
+#[tauri::command]
 pub fn rename_path(state: State<'_, AppState>, from: String, to: String) -> CmdResult<()> {
     Ok(state.ws()?.rename(&from, &to)?)
 }

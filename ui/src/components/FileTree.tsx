@@ -1,12 +1,14 @@
 import { createEffect, createMemo, createSignal, For, on, onCleanup, onMount, Show } from "solid-js";
+import { fileIcon } from "../lib/file-icons";
 import { t } from "../lib/i18n";
 import { MARK_GLYPH } from "../lib/marks";
 import { flattenTree, parentPath } from "../lib/tree";
 import { marks } from "../state/changes";
-import { fileMenu } from "../state/menus";
+import { fileMenu, newFile, newFolder, selectedDir } from "../state/menus";
 import { openFile } from "../state/editor";
 import { treeFocus } from "../state/ui";
-import { select, setExpanded, tree, workspace } from "../state/workspace";
+import { collapseAll, refreshTree, select, setExpanded, tree, workspace } from "../state/workspace";
+import { Icon } from "./Icon";
 
 const OVERSCAN = 10;
 
@@ -129,6 +131,20 @@ export function FileTree(p: { rowH: () => number }) {
       <div class="box">
         <div class="box-title">
           <span class="accent">◇</span> {workspace()?.name ?? "files"}
+          <span class="tree-actions">
+            <button title={t("tree.newFile")} onClick={() => void newFile(selectedDir())}>
+              <Icon name="new-file" />
+            </button>
+            <button title={t("tree.newFolder")} onClick={() => void newFolder(selectedDir())}>
+              <Icon name="new-folder" />
+            </button>
+            <button title={t("tree.refresh")} onClick={() => void refreshTree()}>
+              <Icon name="refresh" />
+            </button>
+            <button title={t("tree.collapseAll")} onClick={collapseAll}>
+              <Icon name="collapse-all" />
+            </button>
+          </span>
         </div>
       <div
         ref={scroller}
@@ -143,7 +159,7 @@ export function FileTree(p: { rowH: () => number }) {
             {({ row, index }) => (
               <div
                 class="tree-row"
-                classList={{ selected: row.entry.path === tree.selected, dir: row.entry.isDir }}
+                classList={{ selected: row.entry.path === tree.selected, dir: row.entry.isDir, ignored: !!row.entry.ignored }}
                 style={{ top: `${index * p.rowH()}px`, "padding-left": `calc(${row.depth * 2 + 1} * var(--cell-w))` }}
                 onClick={() => activateRow(index)}
                 onContextMenu={(e) => {
@@ -153,6 +169,15 @@ export function FileTree(p: { rowH: () => number }) {
                 title={row.entry.path}
               >
                 <span class="tree-glyph">{row.entry.isDir ? (row.expanded ? "▾" : "▸") : " "}</span>
+                {(() => {
+                  const f = fileIcon(row.entry.name, row.entry.isDir, row.expanded);
+                  // Wrapped: `--cell-w` is 1ch, which inside the icon font is another width.
+                  return (
+                    <span class={`tree-icon ft-${f.tone}`}>
+                      <Icon name={f.icon} />
+                    </span>
+                  );
+                })()}
                 <span class="tree-name">{row.entry.name}</span>
                 <Show when={row.loading}>
                   <span class="faint"> …</span>

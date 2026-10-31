@@ -16,6 +16,7 @@
   --bg-alpha: 1;
   --surface: var(--bg);
   --surface-panel: var(--bg-panel);
+  --surface-term: var(--bg-term);
   --radius: 4px;
   --cell-w: 1ch;
   /* Row height of virtualized lists; TS reads it at runtime. */
@@ -27,6 +28,8 @@
   /* Phosphor: a green-on-black terminal. */
   --bg: #070f0b;
   --bg-panel: #091410;
+  /* Terminals sit a step darker than the editor. */
+  --bg-term: #040a07;
   --bg-raised: #0d1c15;
   --bg-hover: #0f2219;
   --bg-select: #12301f;
@@ -61,6 +64,15 @@
   --syn-heading: #5ef08c;
   --syn-link: #5ef08c;
 
+  /* File tree icons by kind, from the terminal palette so every scheme colors them. */
+  --icon-folder: var(--ansi-yellow);
+  --icon-code: var(--ansi-blue);
+  --icon-doc: var(--ansi-green);
+  --icon-data: var(--ansi-bright-yellow);
+  --icon-style: var(--ansi-magenta);
+  --icon-media: var(--ansi-red);
+  --icon-config: var(--fg-dim);
+
   /* Terminal palette (ANSI 0-15), read by xterm.js at runtime. */
   --ansi-black: #0d1c15;
   --ansi-red: #ff7b6b;
@@ -83,12 +95,14 @@
 html.translucent {
   --surface: transparent;
   --surface-panel: color-mix(in srgb, var(--bg-panel) 50%, transparent);
+  --surface-term: color-mix(in srgb, var(--bg-term) 50%, transparent);
 }
 
 :root[data-theme="light"] {
   color-scheme: light;
   --bg: #f7f6f1;
   --bg-panel: #efeee7;
+  --bg-term: #f0efe9;
   --bg-raised: #e7e5dc;
   --bg-hover: #e3e1d7;
   --bg-select: #d3e9df;

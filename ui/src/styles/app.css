@@ -218,6 +218,43 @@ html.translucent .box-title {
 .tree-row.selected .tree-name {
   color: inherit;
 }
+/* File and folder icon, colored by kind (lib/file-icons.ts). */
+/* The glyph is wider than a cell: three cells keep the name on the grid with a gap. */
+.tree-icon {
+  display: inline-block;
+  width: calc(3 * var(--cell-w));
+}
+.ft-folder { color: var(--icon-folder); }
+.ft-code { color: var(--icon-code); }
+.ft-doc { color: var(--icon-doc); }
+.ft-data { color: var(--icon-data); }
+.ft-style { color: var(--icon-style); }
+.ft-media { color: var(--icon-media); }
+.ft-config { color: var(--icon-config); }
+.ft-faint { color: var(--fg-faint); }
+.ft-plain { color: var(--fg-dim); }
+.tree-scroll:focus .tree-row.selected .tree-icon {
+  color: inherit;
+}
+/* Ignored by git (.env, node_modules, build output): listed, dimmed. */
+.tree-row.ignored .tree-name,
+.tree-row.ignored .tree-icon {
+  color: var(--fg-faint);
+}
+/* New file, new folder, refresh, collapse: in the tree box's title, always shown. */
+.tree-actions {
+  display: flex;
+  font-weight: normal;
+}
+/* The glyphs are wider than a cell. */
+.tree-actions button {
+  width: calc(3 * var(--cell-w));
+  height: var(--cell-h);
+  color: var(--fg-faint);
+}
+.tree-actions button:hover {
+  color: var(--accent);
+}
 
 /* Editor */
 .editor {
@@ -796,7 +833,7 @@ html.translucent .box-title {
   min-height: 0;
 }
 .term-pane {
-  background: var(--surface);
+  background: var(--surface-term);
   flex: 1 1 0;
   min-width: 0;
   min-height: 0;
@@ -1413,6 +1450,28 @@ body.dragging * {
 }
 .session-row.archived {
   opacity: 0.75;
+}
+/* Several sessions picked: what can be done to all of them. */
+.session-row.marked {
+  background: var(--bg-select-dim);
+  box-shadow: inset 2px 0 var(--accent);
+}
+.sessions-bulk {
+  display: flex;
+  align-items: center;
+  gap: var(--cell-w);
+  padding: 0 var(--cell-w);
+  border-bottom: 1px solid var(--line);
+  color: var(--fg);
+}
+.sessions-bulk-gap {
+  flex: 1;
+}
+.sessions-head-btn:hover {
+  color: var(--fg);
+}
+.sessions-head-btn.danger:hover {
+  color: var(--danger);
 }
 .history-row .history-meta {
   margin-left: auto;

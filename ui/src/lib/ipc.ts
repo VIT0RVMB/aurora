@@ -8,6 +8,8 @@ export interface DirEntry {
   name: string;
   path: string;
   isDir: boolean;
+  /** Ignored by git: shown dimmed, absent from fuzzy open and search. */
+  ignored?: boolean;
 }
 
 export interface FileStat {
@@ -191,6 +193,7 @@ export const core = {
   statFile: (path: string) => invoke<FileStat>("stat_file", { path }),
   /** An empty file; missing folders are created, an existing file is refused. */
   createFile: (path: string) => invoke<FileStat>("create_file", { path }),
+  createDir: (path: string) => invoke<void>("create_dir", { path }),
   /** Renames or moves a file or folder; an existing target is refused. */
   renamePath: (from: string, to: string) => invoke<void>("rename_path", { from, to }),
   /** In the system's default app for the file. */
